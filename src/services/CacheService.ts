@@ -3,6 +3,8 @@
  * Organiza datos por año y mes usando IndexedDB para grandes volúmenes
  */
 
+import { headerNormalizationService } from './HeaderNormalizationService';
+
 interface CachedFile {
   id: string;
   fileName: string;
@@ -185,6 +187,7 @@ class CacheService {
 
   /**
    * Obtiene datos de un archivo específico
+   * NORMALIZA LOS HEADERS antes de devolver
    */
   async getFile(fileId: string): Promise<CachedData | null> {
     if (!this.db) await this.initDB();
@@ -194,7 +197,23 @@ class CacheService {
       const store = transaction.objectStore('csvData');
       const request = store.get(fileId);
 
-      request.onsuccess = () => resolve(request.result || null);
+      request.onsuccess = () => {
+        const result = request.result;
+        if (!result) {
+          resolve(null);
+          return;
+        }
+
+        // Normalizar headers de los datos
+        const normalizedData = result.data.map((record: any) => 
+          headerNormalizationService.normalizeRecord(record, result.fileInfo.type)
+        );
+
+        resolve({
+          ...result,
+          data: normalizedData
+        });
+      };
       request.onerror = () => reject(request.error);
     });
   }
@@ -531,6 +550,72 @@ class CacheService {
 
       deleteRequest.onsuccess = () => resolve();
       deleteRequest.onerror = () => reject(deleteRequest.error);
+    });
+  }
+
+  /**
+   * Obtiene todos los datos consolidados del caché, agrupados por tipo de tabla
+   * Combina múltiples archivos del mismo tipo en un solo array
+   * NORMALIZA LOS HEADERS usando HeaderNormalizationService
+   */
+  async getConsolidatedData(): Promise<Record<string, any[]>> {
+    if (!this.db) await this.initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['csvData'], 'readonly');
+      const store = transaction.objectStore('csvData');
+      const getAllRequest = store.getAll();
+
+      getAllRequest.onsuccess = () => {
+        const allCachedData = getAllRequest.result as CachedData[];
+        const consolidated: Record<string, any[]> = {};
+
+        console.log(`📦 [CacheService] Consolidando ${allCachedData.length} archivos desde cache...`);
+
+        allCachedData.forEach(cached => {
+          const tableName = cached.fileInfo.type;
+          
+          if (!consolidated[tableName]) {
+            consolidated[tableName] = [];
+          }
+
+          // Agregar metadatos y NORMALIZAR HEADERS para cada registro
+          if (Array.isArray(cached.data)) {
+            console.log(`🔄 [CacheService] Normalizando ${cached.data.length} registros de ${tableName} (archivo: ${cached.fileInfo.fileName})`);
+            
+            for (let i = 0; i < cached.data.length; i++) {
+              const record = cached.data[i];
+              
+              // NORMALIZAR HEADERS usando el servicio
+              const normalizedRecord = headerNormalizationService.normalizeRecord(record, tableName);
+              
+              // Agregar metadatos
+              consolidated[tableName].push({
+                ...normalizedRecord,
+                _YEAR: cached.fileInfo.year,
+                _MONTH: cached.fileInfo.month,
+                _FILE_SOURCE: cached.fileInfo.fileName,
+                _UPLOAD_DATE: cached.fileInfo.uploadDate
+              });
+            }
+            
+            console.log(`✅ [CacheService] ${tableName}: Normalizados ${cached.data.length} registros`);
+          }
+        });
+
+        // Log de resumen
+        console.log(`📊 [CacheService] Datos consolidados:`, 
+          Object.entries(consolidated).map(([tabla, datos]) => ({
+            tabla,
+            registros: datos.length,
+            camposEjemplo: datos[0] ? Object.keys(datos[0]).slice(0, 5) : []
+          }))
+        );
+
+        resolve(consolidated);
+      };
+
+      getAllRequest.onerror = () => reject(getAllRequest.error);
     });
   }
 }

@@ -3,10 +3,11 @@ import { FileUploader } from './FileUploader';
 import { CacheManager } from './CacheManager';
 import { AdvancedConsolidation } from './AdvancedConsolidation';
 import { ValidationReportPanel } from './ValidationReportPanel';
-import { Upload, Database, BarChart3, FileCheck, PlayCircle, Trash2 } from 'lucide-react';
+import { SchemaAnalysisPanel } from './SchemaAnalysisPanel';
+import { Upload, Database, BarChart3, FileCheck, PlayCircle, Trash2, Table } from 'lucide-react';
 import { cacheService } from '../services/CacheService';
 
-type Tab = 'upload' | 'manage' | 'analyze' | 'validation';
+type Tab = 'upload' | 'manage' | 'analyze' | 'validation' | 'schema';
 
 export const DataManagementHub: React.FC<{
   onDataReady?: () => void;
@@ -389,6 +390,15 @@ export const DataManagementHub: React.FC<{
         </button>
 
         <button
+          className={`hub-tab ${activeTab === 'schema' ? 'active' : ''}`}
+          onClick={() => setActiveTab('schema')}
+        >
+          <Table size={20} />
+          Análisis de Schema
+          {hasData && <span className="hub-tab-badge">•</span>}
+        </button>
+
+        <button
           className={`hub-tab ${activeTab === 'manage' ? 'active' : ''}`}
           onClick={() => setActiveTab('manage')}
         >
@@ -412,6 +422,10 @@ export const DataManagementHub: React.FC<{
 
         {activeTab === 'validation' && (
           <ValidationReportPanel />
+        )}
+
+        {activeTab === 'schema' && (
+          <SchemaAnalysisPanel />
         )}
 
         {activeTab === 'manage' && (

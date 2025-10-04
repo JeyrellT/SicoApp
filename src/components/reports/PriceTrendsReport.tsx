@@ -139,6 +139,15 @@ const PriceTrendsReport: React.FC<PriceTrendsReportProps> = ({ filters }) => {
         </p>
       </div>
 
+      {analisisPrecios.estadisticasPorCategoria.length === 0 && (
+        <div className="no-data-message">
+          <div className="alert info">
+            ℹ️ No hay suficientes datos de precios en el período seleccionado. 
+            Prueba ajustando los filtros de período o sectores.
+          </div>
+        </div>
+      )}
+
       {/* Resumen por categoría */}
       <div className="report-section">
         <h3>📊 Análisis por Categoría de Producto</h3>
@@ -254,6 +263,7 @@ const PriceTrendsReport: React.FC<PriceTrendsReportProps> = ({ filters }) => {
       {/* Insights */}
       <div className="report-section insights">
         <h3>💡 Insights de Precios</h3>
+        {analisisPrecios.estadisticasPorCategoria.length > 0 ? (
         <div className="insights-grid">
           <div className="insight-card">
             <div className="insight-icon">📈</div>
@@ -261,7 +271,7 @@ const PriceTrendsReport: React.FC<PriceTrendsReportProps> = ({ filters }) => {
               <div className="insight-title">Mayor Crecimiento</div>
               <div className="insight-text">
                 {analisisPrecios.estadisticasPorCategoria.reduce((max, c) => c.tendencia > max.tendencia ? c : max, analisisPrecios.estadisticasPorCategoria[0])?.categoria}
-                {' '}ha incrementado {Math.max(...analisisPrecios.estadisticasPorCategoria.map(c => c.tendencia)).toFixed(1)}% 
+                {' '}ha incrementado {Math.max(...analisisPrecios.estadisticasPorCategoria.map(c => c.tendencia || 0)).toFixed(1)}% 
                 en el período
               </div>
             </div>
@@ -273,7 +283,7 @@ const PriceTrendsReport: React.FC<PriceTrendsReportProps> = ({ filters }) => {
               <div className="insight-title">Mayor Estabilidad</div>
               <div className="insight-text">
                 {analisisPrecios.estadisticasPorCategoria.reduce((min, c) => c.variabilidad < min.variabilidad ? c : min, analisisPrecios.estadisticasPorCategoria[0])?.categoria}
-                {' '}presenta la menor variabilidad con {Math.min(...analisisPrecios.estadisticasPorCategoria.map(c => c.variabilidad)).toFixed(1)}%
+                {' '}presenta la menor variabilidad con {Math.min(...analisisPrecios.estadisticasPorCategoria.map(c => c.variabilidad || 0)).toFixed(1)}%
               </div>
             </div>
           </div>
@@ -294,12 +304,17 @@ const PriceTrendsReport: React.FC<PriceTrendsReportProps> = ({ filters }) => {
               <div className="insight-title">Mayor Volatilidad</div>
               <div className="insight-text">
                 {analisisPrecios.estadisticasPorCategoria.reduce((max, c) => c.variabilidad > max.variabilidad ? c : max, analisisPrecios.estadisticasPorCategoria[0])?.categoria}
-                {' '}muestra alta variabilidad ({Math.max(...analisisPrecios.estadisticasPorCategoria.map(c => c.variabilidad)).toFixed(1)}%) - 
+                {' '}muestra alta variabilidad ({Math.max(...analisisPrecios.estadisticasPorCategoria.map(c => c.variabilidad || 0)).toFixed(1)}%) - 
                 Requiere análisis detallado
               </div>
             </div>
           </div>
         </div>
+        ) : (
+          <div className="alert info">
+            ℹ️ No hay suficientes datos para generar insights de precios
+          </div>
+        )}
       </div>
 
       {/* Recomendaciones */}

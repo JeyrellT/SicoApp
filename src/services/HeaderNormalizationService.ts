@@ -163,11 +163,12 @@ const HEADER_MAPPINGS: Record<string, Record<string, string>> = {
     'tipo_disminucion': 'tipoDisminucion',
     'vigencia': 'vigencia',
     'moneda': 'tipoMoneda',
+    'tipo_moneda': 'tipoMoneda',
     'fecha_ini_susp': 'fechaInicioSuspension',
     'fecha_reini_cont': 'fechaReinicioContrato',
     'plazo_susp': 'plazoSuspension',
     'fecha_modificacion': 'fechaModificacion',
-    'fecha_ini_prorr': 'fechaInicio Prorroga',
+    'fecha_ini_prorr': 'fechaInicioProrroga',
     'fecha_fin_prorr': 'fechaFinProrroga',
     'nro_contrato_web': 'numeroContratoWeb'
   },
@@ -226,15 +227,29 @@ const HEADER_MAPPINGS: Record<string, Record<string, string>> = {
   LineasContratadas: {
     'nro_sicop': 'numeroCartel',
     'nro_contrato': 'idContrato',
-    'nro_linea': 'numeroLinea',
-    'nro_linea_contrato': 'numeroLinea',
-    'nro_linea_cartel': 'numeroLineaCartel',
+  'nro_linea': 'numeroLinea',
+  'nro_linea_contrato': 'numeroLineaContrato',
+  'nro_linea_cartel': 'numeroLineaCartel',
     'codigo_producto': 'codigoProducto',
     'cantidad': 'cantidad',
     'cantidad_contratada': 'cantidad',
+    'cantidad_adjudicada': 'cantidadAdjudicada',
+    'cantidad_aumentada': 'cantidadAumentada',
+    'cantidad_disminuida': 'cantidadDisminuida',
     'precio_unitario': 'precioUnitario',
+    'precio_unitario_adjudicado': 'precioAdjudicado',
     'monto_total': 'montoTotal',
+    'monto_linea_contratada': 'montoLineaContratada',
+    'monto_aumentado': 'montoAumentado',
+    'monto_disminuido': 'montoDisminuido',
     'desc_producto': 'descripcionProducto',
+    'tipo_moneda': 'tipoMoneda',
+    'tipo_cambio_crc': 'tipoCambioCRC',
+    'tipo_cambio_dolar': 'tipoCambioDolar',
+    'descuento': 'descuento',
+    'iva': 'iva',
+    'otros_impuestos': 'otrosImpuestos',
+    'acarreos': 'acarreos'
   },
 
   // ================================
@@ -409,25 +424,44 @@ class HeaderNormalizationService {
   /**
    * Normaliza los headers de un registro según el tipo de archivo
    */
+  /**
+   * Normaliza los headers de un registro según el tipo de archivo
+   * ADEMÁS conserva los campos originales para compatibilidad con datos antiguos en caché
+   */
   normalizeRecord(record: any, fileType: string): any {
     const mapping = HEADER_MAPPINGS[fileType];
     if (!mapping) {
       // Si no hay mapeo específico, retornar el registro sin cambios
-      console.warn(`⚠️ No hay mapeo de headers para tipo: ${fileType}`);
+      console.warn(`⚠️ [HeaderNormalization] No hay mapeo de headers para tipo: "${fileType}". Tipos disponibles:`, Object.keys(HEADER_MAPPINGS));
       return record;
     }
 
     const normalized: any = {};
+    let camposNormalizados = 0;
     
     for (const [key, value] of Object.entries(record)) {
+      // CONSERVAR el campo original (para compatibilidad con caché antiguo)
+      normalized[key] = value;
+      
       // Convertir el key a minúsculas para comparación
       const keyLower = key.toLowerCase().trim();
       
       // Buscar el mapeo correspondiente
-      const normalizedKey = mapping[keyLower] || key;
+      const normalizedKey = mapping[keyLower];
       
-      // Asignar el valor con la clave normalizada
-      normalized[normalizedKey] = value;
+      // Si hay un mapeo Y es diferente del original, agregar TAMBIÉN el normalizado
+      if (normalizedKey && normalizedKey !== key) {
+        camposNormalizados++;
+        normalized[normalizedKey] = value;
+        
+        if (key.toLowerCase().includes('desc') || key.toLowerCase().includes('linea')) {
+          console.log(`🔄 [HeaderNormalization] "${key}" → "${normalizedKey}" (tipo: ${fileType}, conservando ambos)`);
+        }
+      }
+    }
+
+    if (camposNormalizados > 0) {
+      console.log(`✅ [HeaderNormalization] Normalizados ${camposNormalizados} campos para tipo "${fileType}" (conservando originales)`);
     }
 
     return normalized;

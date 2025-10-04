@@ -85,6 +85,11 @@ class CategoryAnalysisServiceImpl {
     const carteles: any[] = dataManager.obtenerDatos('DetalleCarteles') || [];
     const instituciones: any[] = dataManager.obtenerDatos('InstitucionesRegistradas') || [];
     
+    // DEBUG: Verificar reglas disponibles
+    const activeRules = this.getSectorRules();
+    console.log('[CategoryAnalysisService] Reglas activas:', Object.keys(activeRules));
+    console.log('[CategoryAnalysisService] Total líneas a analizar:', lineas.length);
+    
     // Crear mapas para joins eficientes
     const cartelMap = new Map(carteles.map(c => [c.numeroCartel, c]));
     const institucionMap = new Map(instituciones.map(i => [i.codigoInstitucion, i]));
@@ -108,6 +113,11 @@ class CategoryAnalysisServiceImpl {
     
     // Agrupar por sector
     const porSector = _.groupBy(clasificaciones, 'sector');
+    
+    console.log('[CategoryAnalysisService] Sectores encontrados:', Object.keys(porSector));
+    console.log('[CategoryAnalysisService] Distribución:', 
+      Object.entries(porSector).map(([s, ls]) => `${s}: ${ls.length}`).join(', ')
+    );
     
     const categorias: CategoryAnalysis[] = [];
     
@@ -170,6 +180,11 @@ class CategoryAnalysisServiceImpl {
     
     const sinCategorizar = porSector['Sin categorizar'] || [];
     const cobertura = ((totalLineas - sinCategorizar.length) / totalLineas) * 100;
+    
+    console.log('[CategoryAnalysisService] Resultado final:');
+    console.log('  - Total categorías:', categorias.length);
+    console.log('  - Cobertura:', cobertura.toFixed(2) + '%');
+    console.log('  - Sin categorizar:', sinCategorizar.length);
     
     return {
       totalLineas,

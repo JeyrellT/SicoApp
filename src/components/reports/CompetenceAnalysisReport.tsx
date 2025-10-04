@@ -27,16 +27,28 @@ const CompetenceAnalysisReport: React.FC<CompetenceAnalysisReportProps> = ({ fil
 
     const porProveedor = _.groupBy(contratos, 'idProveedor');
     
-    const montoTotal = _.sumBy(contratos, 'montoContrato') || 1;
+    // Calcular monto total usando método preciso
+    const montoTotal = _.sumBy(contratos, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 1;
 
     const ranking = _.map(porProveedor, (contratosProveedor, idProveedor) => {
       const proveedor = proveedoresData.find(p => p.idProveedor === idProveedor);
       const ofertasProveedor = ofertas.filter(o => o.idProveedor === idProveedor);
-      const montoProveedor = _.sumBy(contratosProveedor, 'montoContrato') || 0;
+      
+      // Calcular monto del proveedor usando método preciso
+      const montoProveedor = _.sumBy(contratosProveedor, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 0;
+      
+      // Mejorar nombre del proveedor
+      let nombreProveedor = 'Desconocido';
+      if (proveedor) {
+        nombreProveedor = proveedor.nombreProveedor || 
+                         proveedor.razonSocial || 
+                         proveedor.nombre || 
+                         `Proveedor ${idProveedor}`;
+      }
       
       return {
         id: idProveedor,
-        nombre: proveedor?.nombreProveedor || 'Desconocido',
+        nombre: nombreProveedor,
         cantidadContratos: contratosProveedor.length,
         montoTotal: montoProveedor,
         montoPromedio: montoProveedor / contratosProveedor.length,

@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { useSicop } from '../context/SicopContext';
 import { reportService } from '../services/ReportService';
+import { dataManager } from '../data/DataManager';
 import './ReportsPanel.css';
 
 // Importar sub-componentes de reportes
@@ -20,6 +21,7 @@ type ReportType = 'executive' | 'sector' | 'competence' | 'prices' | 'opportunit
 interface ReportFilter {
   periodo: { inicio: Date; fin: Date };
   sectores: string[];
+  categorias: string[]; // Categorías manuales
   incluirOportunidades: boolean;
 }
 
@@ -33,6 +35,7 @@ export const ReportsPanel: React.FC = () => {
       fin: new Date()
     },
     sectores: [],
+    categorias: [],
     incluirOportunidades: true
   });
 
@@ -98,6 +101,16 @@ export const ReportsPanel: React.FC = () => {
     'transporte', 'seguridad', 'alimentos', 'servicios', 'consultoría'
   ];
 
+  // Categorías manuales disponibles (obtenerlas del DataManager)
+  const categoriasDisponibles = useMemo(() => {
+    try {
+      return dataManager.getManualCategoryNames();
+    } catch (error) {
+      console.error('Error obteniendo categorías manuales:', error);
+      return [];
+    }
+  }, []);
+
   const handleExportReport = () => {
     // TODO: Implementar exportación real
     alert(`Exportando reporte en formato ${exportFormat.toUpperCase()}...`);
@@ -109,6 +122,15 @@ export const ReportsPanel: React.FC = () => {
       sectores: prev.sectores.includes(sector)
         ? prev.sectores.filter(s => s !== sector)
         : [...prev.sectores, sector]
+    }));
+  };
+
+  const handleToggleCategoria = (categoria: string) => {
+    setFilters(prev => ({
+      ...prev,
+      categorias: prev.categorias.includes(categoria)
+        ? prev.categorias.filter(c => c !== categoria)
+        : [...prev.categorias, categoria]
     }));
   };
 
@@ -316,6 +338,29 @@ export const ReportsPanel: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {/* Filtro de categorías manuales */}
+        {categoriasDisponibles.length > 0 && (
+          <div className="filter-group">
+            <label>🏷️ Categorías Personalizadas:</label>
+            <div className="sectors-filter">
+              {categoriasDisponibles.map(categoria => (
+                <button
+                  key={categoria}
+                  className={`sector-tag ${filters.categorias.includes(categoria) ? 'active' : ''}`}
+                  onClick={() => handleToggleCategoria(categoria)}
+                >
+                  {categoria}
+                </button>
+              ))}
+            </div>
+            {filters.categorias.length > 0 && (
+              <div className="filter-info">
+                ℹ️ Filtrando por {filters.categorias.length} categoría{filters.categorias.length > 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Menú de navegación de reportes */}

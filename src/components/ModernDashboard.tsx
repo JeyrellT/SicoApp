@@ -53,6 +53,7 @@ interface SectorData {
   monto_total: number;
   promedio_monto: number;
   instituciones: number;
+  [key: string]: any;
 }
 
 interface MetricaTemporalProps {

@@ -30,13 +30,10 @@ const PerformanceMetricsReport: React.FC<PerformanceMetricsReportProps> = ({ fil
     const lineasAdjudicadas = dataManager.obtenerDatos('LineasAdjudicadas');
     const fechasPorEtapas = dataManager.obtenerDatos('FechaPorEtapas');
 
-    // KPI 1: Tasa de adjudicación
-    const totalLineasPublicadas = _.sumBy(carteles, 'cantidadLineas') || 1;
-    const totalLineasAdjudicadas = lineasAdjudicadas.filter(la => {
-      const cartel = carteles.find(c => c.numeroCartel === la.numeroCartel);
-      return !!cartel;
-    }).length;
-    const tasaAdjudicacion = (totalLineasAdjudicadas / totalLineasPublicadas) * 100;
+    // KPI 1: Tasa de adjudicación (% de licitaciones que resultan en contratos)
+    const totalLicitaciones = carteles.length || 1;
+    const totalContratosUnicos = contratos.length;
+    const tasaAdjudicacion = (totalContratosUnicos / totalLicitaciones) * 100;
 
     // KPI 2: Tiempo promedio de proceso
     const tiempos = carteles.map(cartel => {
@@ -53,23 +50,28 @@ const PerformanceMetricsReport: React.FC<PerformanceMetricsReportProps> = ({ fil
     // KPI 3: Competencia promedio
     const competenciaPromedio = _.meanBy(lineasRecibidas, 'cantidadOfertasRecibidas') || 0;
 
-    // KPI 4: Monto promedio por contrato
-    const montoPromedio = _.meanBy(contratos, 'montoContrato') || 0;
+    // KPI 4: Monto promedio por contrato (usar método preciso)
+    const montoPromedio = _.meanBy(contratos, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 0;
 
     // KPI 5: Tasa de éxito de proveedores
     const totalOfertas = ofertas.length || 1;
     const tasaExitoGlobal = (contratos.length / totalOfertas) * 100;
 
-    // KPI 6: Concentración de mercado (HHI - Herfindahl-Hirschman Index)
+    // KPI 6: Concentración de mercado (HHI - Herfindahl-Hirschman Index) - usar método preciso
     const porProveedor = _.groupBy(contratos, 'idProveedor');
-    const montoTotal = _.sumBy(contratos, 'montoContrato') || 1;
+    const montoTotal = _.sumBy(contratos, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 1;
     const hhi = _.sumBy(Object.values(porProveedor), (contratosProveedor) => {
-      const marketShare = (_.sumBy(contratosProveedor, 'montoContrato') / montoTotal) * 100;
+      const montoProveedor = _.sumBy(contratosProveedor, (c: any) => dataManager.obtenerMontoContratoPreciso(c));
+      const marketShare = (montoProveedor / montoTotal) * 100;
       return Math.pow(marketShare, 2);
     });
 
     // KPI 7: Eficiencia de adjudicación
     const lineasConOfertas = lineasRecibidas.filter(lr => lr.cantidadOfertasRecibidas > 0).length;
+    const totalLineasAdjudicadas = lineasAdjudicadas.filter(la => {
+      const cartel = carteles.find(c => c.numeroCartel === la.numeroCartel);
+      return !!cartel;
+    }).length;
     const eficienciaAdjudicacion = lineasConOfertas > 0 ? (totalLineasAdjudicadas / lineasConOfertas) * 100 : 0;
 
     // KPI 8: Variabilidad de precios
@@ -89,7 +91,7 @@ const PerformanceMetricsReport: React.FC<PerformanceMetricsReportProps> = ({ fil
       totalLicitaciones: carteles.length,
       totalContratos: contratos.length,
       totalOfertas,
-      montoTotal: _.sumBy(contratos, 'montoContrato')
+      montoTotal
     };
   }, [filters]);
 
@@ -119,12 +121,15 @@ const PerformanceMetricsReport: React.FC<PerformanceMetricsReportProps> = ({ fil
         return (fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24);
       }).filter((t): t is number => t !== null && t > 0);
 
+      // Calcular monto total usando método preciso
+      const montoTotal = _.sumBy(contratosInst, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 0;
+
       return {
         codigo,
         nombre: institucion?.nombreInstitucion || 'Desconocida',
         cantidadLicitaciones: cartelesInst.length,
         cantidadContratos: contratosInst.length,
-        montoTotal: _.sumBy(contratosInst, 'montoContrato') || 0,
+        montoTotal,
         tiempoPromedio: _.mean(tiempos) || 0,
         tasaConversion: cartelesInst.length > 0 ? (contratosInst.length / cartelesInst.length) * 100 : 0
       };
@@ -147,8 +152,8 @@ const PerformanceMetricsReport: React.FC<PerformanceMetricsReportProps> = ({ fil
     return _.map(porMes, (contratosDelMes, periodo) => ({
       periodo,
       cantidad: contratosDelMes.length,
-      monto: _.sumBy(contratosDelMes, 'montoContrato') || 0,
-      promedio: _.meanBy(contratosDelMes, 'montoContrato') || 0
+      monto: _.sumBy(contratosDelMes, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 0,
+      promedio: _.meanBy(contratosDelMes, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 0
     }))
     .filter(item => item.periodo !== 'Sin fecha')
     .sort((a, b) => a.periodo.localeCompare(b.periodo));

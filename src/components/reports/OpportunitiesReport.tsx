@@ -12,6 +12,7 @@ interface OpportunitiesReportProps {
     periodo: { inicio: Date; fin: Date };
     sectores: string[];
     incluirOportunidades: boolean;
+    categorias: string[]; // Agregado: filtro por categorías manuales
   };
 }
 
@@ -32,11 +33,35 @@ const OpportunitiesReport: React.FC<OpportunitiesReportProps> = ({ filters }) =>
   
   // Identificar oportunidades
   const oportunidades = useMemo<Oportunidad[]>(() => {
-    const carteles = dataManager.obtenerDatos('DetalleCarteles')
+    // Obtener datos base
+    let carteles = dataManager.obtenerDatos('DetalleCarteles')
       .filter(c => c.fechaPublicacion && c.fechaPublicacion >= filters.periodo.inicio && c.fechaPublicacion <= filters.periodo.fin);
     
-    const contratos = dataManager.obtenerDatos('Contratos')
+    let contratos = dataManager.obtenerDatos('Contratos')
       .filter(c => c.fechaFirma && c.fechaFirma >= filters.periodo.inicio && c.fechaFirma <= filters.periodo.fin);
+    
+    // ============================================
+    // FILTRAR POR CATEGORÍAS MANUALES (si están seleccionadas)
+    // ============================================
+    if (filters.categorias && filters.categorias.length > 0) {
+      const categoriasUsuario = dataManager.obtenerDatos('CategoriasUsuario') || [];
+      
+      // Filtrar carteles que pertenezcan a alguna categoría seleccionada
+      carteles = carteles.filter(cartel => {
+        return categoriasUsuario.some(cat => {
+          if (!filters.categorias.includes(cat.nombreCategoria)) return false;
+          return cat.carteles?.some((c: any) => c.numeroCartel === cartel.numeroCartel);
+        });
+      });
+
+      // Filtrar contratos que pertenezcan a alguna categoría seleccionada
+      contratos = contratos.filter(contrato => {
+        return categoriasUsuario.some(cat => {
+          if (!filters.categorias.includes(cat.nombreCategoria)) return false;
+          return cat.contratos?.some((c: any) => c.idContrato === contrato.idContrato);
+        });
+      });
+    }
     
     const lineasAdjudicadas = dataManager.obtenerDatos('LineasAdjudicadas');
     const lineasRecibidas = dataManager.obtenerDatos('LineasRecibidas');
@@ -118,7 +143,8 @@ const OpportunitiesReport: React.FC<OpportunitiesReportProps> = ({ filters }) =>
           });
         });
 
-        const montoEstimado = _.sumBy(contratosDelSector, 'montoContrato') || 0;
+        // Calcular monto estimado usando método preciso
+        const montoEstimado = _.sumBy(contratosDelSector, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 0;
 
         oportunidadesEncontradas.push({
           tipo: 'crecimiento',
@@ -146,11 +172,14 @@ const OpportunitiesReport: React.FC<OpportunitiesReportProps> = ({ filters }) =>
       const institucion = instituciones.find(i => i.codigoInstitucion === codigo);
       const contratosInst = contratos.filter(c => c.codigoInstitucion === codigo);
       
+      // Calcular monto total usando método preciso
+      const montoTotal = _.sumBy(contratosInst, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 0;
+      
       return {
         codigo,
         nombre: institucion?.nombreInstitucion || 'Desconocida',
         cantidadCarteles: cartelesInst.length,
-        montoTotal: _.sumBy(contratosInst, 'montoContrato') || 0
+        montoTotal
       };
     })
     .filter(inst => inst.cantidadCarteles >= 10)
@@ -197,7 +226,8 @@ const OpportunitiesReport: React.FC<OpportunitiesReportProps> = ({ filters }) =>
           return texto.includes(palabra.toLowerCase());
         });
 
-        const montoEstimado = _.sumBy(contratosEmergentes, 'montoContrato') || 0;
+        // Calcular monto estimado usando método preciso
+        const montoEstimado = _.sumBy(contratosEmergentes, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 0;
 
         oportunidadesEncontradas.push({
           tipo: 'emergente',

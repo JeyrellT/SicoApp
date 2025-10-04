@@ -607,11 +607,40 @@ export const MAPEO_HEADERS_POR_TABLA: Record<string, Record<string, string>> = {
     'nombre proveedor': 'nombreProveedor',
     'nom_proveedor': 'nombreProveedor',
     'razon_social': 'nombreProveedor',
-  'nombre': 'nombreProveedor',
-  // Variantes del archivo Proveedores_unido.csv (con acentos)
-  'cédula proveedor': 'idProveedor',
-  'cédula_proveedor': 'idProveedor',
-  'cedula proveedor': 'idProveedor',
+    'nombre': 'nombreProveedor',
+    // Variantes con espacios (como en Proveedores_unido.csv)
+    'cédula proveedor': 'idProveedor',
+    'cédula_proveedor': 'idProveedor',
+    'cedula proveedor': 'idProveedor',
+    // Variantes de tipo y tamaño
+    'tipo proveedor': 'tipoProveedor',
+    'tipo_proveedor': 'tipoProveedor',
+    'tamaño proveedor': 'tamanoProveedor',
+    'tamano proveedor': 'tamanoProveedor',
+    'tamaño_proveedor': 'tamanoProveedor',
+    'tamano_proveedor': 'tamanoProveedor',
+    // Variantes de ubicación
+    'codigo postal': 'codigoPostal',
+    'codigo_postal': 'codigoPostal',
+    'código postal': 'codigoPostal',
+    'provincia': 'provincia',
+    'canton': 'canton',
+    'cantón': 'canton',
+    'distrito': 'distrito'
+  },
+  Proveedores_unido: {
+    'cedula_proveedor': 'idProveedor',
+    'cedula_juridica': 'idProveedor',
+    'cedula': 'idProveedor',
+    'id_proveedor': 'idProveedor',
+    'nombre_proveedor': 'nombreProveedor',
+    'nombre proveedor': 'nombreProveedor',
+    'nom_proveedor': 'nombreProveedor',
+    'razon_social': 'nombreProveedor',
+    'nombre': 'nombreProveedor',
+    'cédula proveedor': 'idProveedor',
+    'cédula_proveedor': 'idProveedor',
+    'cedula proveedor': 'idProveedor',
     'tipo proveedor': 'tipoProveedor',
     'tipo_proveedor': 'tipoProveedor',
     'tamaño proveedor': 'tamanoProveedor',
@@ -652,38 +681,61 @@ export const MAPEO_HEADERS_POR_TABLA: Record<string, Record<string, string>> = {
     'numero_linea': 'numeroLinea',
     'nro_linea': 'numeroLinea',
     'nro_sicop': 'numeroCartel',
+    'numero_partida': 'numeroPartida', // Agregado - requerido por schema
     'cantidad_solicitada': 'cantidadRequerida',
     'precio_unitario_estimado': 'presupuestoLinea',
+    'tipo_moneda': 'tipoMoneda',
+    'tipo_cambio_crc': 'tipoCambioCRC',
+    'tipo_cambio_dolar': 'tipoCambioDolar',
+    'codigo_identificacion': 'codigoIdentificacion',
+    'monto_reservado': 'montoReservado',
     // variantes sin underscore
     'desc_producto': 'descripcionLinea',
     'numerolinea': 'numeroLinea',
-    'numerocartel': 'numeroCartel'
+    'numerocartel': 'numeroCartel',
+    'numeropartida': 'numeroPartida'
   },
   FechaPorEtapas: {
     'nro_sicop': 'numeroCartel',
     'numero_procedimiento': 'codigoProcedimiento',
     'publicacion': 'fechaPublicacion',
+    'fecha_publicacion': 'fechaPublicacion',
     'fecha_apertura': 'fechaAperturaOfertas',
+    'fecha_apertura_ofertas': 'fechaAperturaOfertas',
     'adjudicacion_firme': 'fechaAdjudicacion',
-    'fecha_elaboracion_contrato': 'fechaFirmaContrato'
+    'fecha_adjudicacion': 'fechaAdjudicacion',
+    'fecha_elaboracion_contrato': 'fechaFirmaContrato',
+    'fecha_firma_contrato': 'fechaFirmaContrato'
   },
   Ofertas: {
     'nro_sicop': 'numeroCartel',
+    'numero_oferta': 'numeroOferta',
+    'nro_oferta': 'numeroOferta',
     'cedula_proveedor': 'idProveedor',
     'id_proveedor': 'idProveedor',
-    'fecha_presenta_oferta': 'fechaOferta'
+    'fecha_presenta_oferta': 'fechaOferta',
+    'fecha_oferta': 'fechaOferta',
+    'tipo_moneda': 'tipoMoneda'
   },
   LineasOfertadas: {
     'nro_sicop': 'numeroCartel',
     'nro_linea': 'numeroLinea',
-    'nro_oferta': 'idOferta',
+    'numero_linea': 'numeroLinea',
+    'nro_oferta': 'numeroOferta',
+    'numero_oferta': 'numeroOferta',
     'id_proveedor': 'idProveedor',
-    'cedula_proveedor': 'idProveedor'
+    'cedula_proveedor': 'idProveedor',
+    'codigo_producto': 'codigoProducto',
+    'cantidad_ofertada': 'cantidadOfertada',
+    'precio_unitario': 'precioUnitario',
+    'tipo_moneda': 'tipoMoneda'
   },
   LineasRecibidas: {
     'nro_sicop': 'numeroCartel',
     'nro_contrato': 'idContrato',
-    'nro_linea': 'numeroLinea'
+    'nro_linea': 'numeroLinea',
+    'numero_linea': 'numeroLinea',
+    'codigo_producto': 'codigoProducto'
   },
   InvitacionProcedimiento: {
     'nro_sicop': 'numeroCartel',
@@ -694,52 +746,142 @@ export const MAPEO_HEADERS_POR_TABLA: Record<string, Record<string, string>> = {
   LineasContratadas: {
     'nro_sicop': 'numeroCartel',
     'nro_contrato': 'idContrato',
-    'nro_linea_cartel': 'numeroLinea'
+    'nro_linea_cartel': 'numeroLinea',
+    'nro_linea_contrato': 'numeroLineaContrato',
+    'nro_linea': 'numeroLinea',
+    'codigo_producto': 'codigoProducto',
+    'cantidad': 'cantidad',
+    'cantidad_contratada': 'cantidad',
+    'cantidad_adjudicada': 'cantidadAdjudicada',
+    'cantidad_aumentada': 'cantidadAumentada',
+    'cantidad_disminuida': 'cantidadDisminuida',
+    'precio_unitario': 'precioUnitario',
+    'precio_unitario_adjudicado': 'precioAdjudicado',
+    'monto_total': 'montoTotal',
+    'monto_linea_contratada': 'montoLineaContratada',
+    'monto_aumentado': 'montoAumentado',
+    'monto_disminuido': 'montoDisminuido',
+    'desc_producto': 'descripcionProducto',
+    'tipo_moneda': 'tipoMoneda',
+    'tipo_cambio_crc': 'tipoCambioCRC',
+    'tipo_cambio_dolar': 'tipoCambioDolar',
+    'descuento': 'descuento',
+    'iva': 'iva',
+    'otros_impuestos': 'otrosImpuestos',
+    'acarreos': 'acarreos'
   },
   OrdenPedido: {
+    'nro_sicop': 'numeroCartel', // Agregado - requerido por schema
     'nro_contrato': 'idContrato',
     'nro_orden': 'idOrden',
-    'fecha_elaboracion_orden': 'fechaOrden'
+    'nro_orden_pedido': 'idOrden', // Variante del campo requerido
+    'numero_orden_pedido': 'idOrden',
+    'fecha_elaboracion_orden': 'fechaOrden',
+    'fecha_orden': 'fechaOrden'
   },
   Recepciones: {
+    'nro_sicop': 'numeroCartel', // Agregado - requerido por schema
     'nro_contrato': 'idContrato',
     'nro_recep_definitiva': 'idRecepcion',
-    'fecha_recep_definitiva': 'fechaRecepcion'
+    'nro_recepcion': 'idRecepcion', // Variante del campo requerido
+    'numero_recepcion': 'idRecepcion',
+    'fecha_recep_definitiva': 'fechaRecepcion',
+    'fecha_recepcion': 'fechaRecepcion'
   },
   Garantias: {
     'nro_sicop': 'numeroCartel',
     'cedula_proveedor': 'idProveedor',
-    'id_proveedor': 'idProveedor'
+    'id_proveedor': 'idProveedor',
+    'tipo_garantia': 'tipoGarantia', // Agregado - requerido por schema
+    'monto': 'montoGarantia',
+    'fecha_inicio': 'fechaInicio',
+    'fecha_vencimiento': 'fechaVencimiento'
   },
   RecursosObjecion: {
     'nro_sicop': 'numeroCartel',
+    'numero_recurso': 'idRecurso', // Agregado - requerido por schema
     'cedula_proveedor': 'idProveedor',
     'id_proveedor': 'idProveedor',
-    'fecha_presentacion_recurso': 'fechaPresentacion'
+    'fecha_presentacion_recurso': 'fechaPresentacion',
+    'fecha_presentacion': 'fechaPresentacion'
   },
   SancionProveedores: {
     'cedula_proveedor': 'idProveedor',
     'id_proveedor': 'idProveedor',
+    'nombre_proveedor': 'nombreProveedor', // Agregado - requerido por schema
     'inicio_sancion': 'fechaInicioSancion',
-    'final_sancion': 'fechaFinSancion'
+    'fecha_inicio_sancion': 'fechaInicioSancion',
+    'final_sancion': 'fechaFinSancion',
+    'fecha_fin_sancion': 'fechaFinSancion'
   },
   Contratos: {
     'nro_contrato': 'idContrato',
     'numero_contrato': 'idContrato',
+    
+    // ===== CAMPOS DE MONTO - VARIANTES MÚLTIPLES =====
+    // Variantes principales
     'monto_contrato': 'montoContrato',
+    'monto': 'montoContrato',
+    
+    // Variantes alternativas comunes
+    'monto_total': 'montoContrato',
+    'monto_total_contrato': 'montoContrato',
+    'valor_contrato': 'montoContrato',
+    'monto_adjudicado': 'montoContrato',
+    'precio_total': 'montoContrato',
+    'importe': 'montoContrato',
+    'total': 'montoContrato',
+    'total_contrato': 'montoContrato',
+    'valor_total': 'montoContrato',
+    'monto_total_adjudicado': 'montoContrato',
+    
+    // Variantes en mayúsculas
+    'MONTO_CONTRATO': 'montoContrato',
+    'MONTO_TOTAL': 'montoContrato',
+    'MONTO': 'montoContrato',
+    'VALOR_CONTRATO': 'montoContrato',
+    
+    // Variantes con espacios (pre-normalización)
+    'monto contrato': 'montoContrato',
+    'monto total': 'montoContrato',
+    'valor del contrato': 'montoContrato',
+    'valor contrato': 'montoContrato',
+    // ===== FIN CAMPOS DE MONTO =====
+    
     'fecha_firma': 'fechaFirma',
     'fecha_elaboracion': 'fechaFirma',
     'cedula_proveedor': 'idProveedor',
     'cedula_institucion': 'codigoInstitucion',
     'nro_sicop': 'numeroCartel',
-    'numero_procedimiento': 'codigoProcedimiento'
+    'numero_procedimiento': 'codigoProcedimiento',
+    'secuencia': 'secuencia',
+    'tipo_contrato': 'tipoContrato',
+    'tipo_modificacion': 'tipoModificacion',
+    'fecha_notificacion': 'fechaNotificacion',
+    'tipo_autorizacion': 'tipoAutorizacion',
+    'tipo_disminucion': 'tipoDisminucion',
+    'vigencia': 'vigencia',
+    'moneda': 'tipoMoneda',
+    'tipo_moneda': 'tipoMoneda',
+    'fecha_ini_susp': 'fechaInicioSuspension',
+    'fecha_reini_cont': 'fechaReinicioContrato',
+    'plazo_susp': 'plazoSuspension',
+    'fecha_modificacion': 'fechaModificacion',
+    'fecha_ini_prorr': 'fechaInicioProrroga',
+    'fecha_fin_prorr': 'fechaFinProrroga',
+    'nro_contrato_web': 'numeroContratoWeb'
   },
   AdjudicacionesFirme: {
     'nro_sicop': 'numeroCartel',
     'numero_sicop': 'numeroCartel',
+    'nro_acto': 'numeroActo',
     'fecha_adjudicacion_firme': 'fechaAdjudicacionFirme',
     'fecha_adj_firme': 'fechaAdjudicacionFirme',
-    'monto_total_adjudicado': 'montoTotalAdjudicado'
+    'fecha_adjudicacion': 'fechaAdjudicacionFirme', // Variante adicional
+    'monto_total_adjudicado': 'montoTotalAdjudicado',
+    'permite_recursos': 'permiteRecursos',
+    'desierto': 'desierto',
+    'fecha_rev': 'fechaRevision'
   },
   LineasAdjudicadas: {
     'nro_sicop': 'numeroCartel',
@@ -755,14 +897,48 @@ export const MAPEO_HEADERS_POR_TABLA: Record<string, Record<string, string>> = {
     'cantidad_adjudicada': 'cantidadAdjudicada',
     'monto_linea_adjudicada': 'montoLineaAdjudicada',
     'tipo_moneda': 'tipoMoneda',
-    'tipo_cambio_crc': 'tipo_cambio_crc'
+    'tipo_cambio_crc': 'tipoCambioCRC',
+    'tipo_cambio_dolar': 'tipoCambioDolar',
+    'descuento': 'descuento',
+    'iva': 'iva',
+    'otros_impuestos': 'otrosImpuestos',
+    'acarreos': 'acarreos',
+    'nro_acto': 'numeroActo'
   },
   ProcedimientoAdjudicacion: {
     'numero_procedimiento': 'codigoProcedimiento',
-    'descr_procedimiento': 'descripcionProcedimiento'
+    'descr_procedimiento': 'descripcionProcedimiento',
+    'cedula': 'codigoInstitucion', // Agregado - requerido por schema
+    'institucion': 'nombreInstitucion' // Agregado - requerido por schema
   },
   ProcedimientoADM: {
     'numero_procedimiento': 'codigoProcedimientoADM',
-    'descr_procedimiento': 'descripcionProcedimientoADM'
+    'descr_procedimiento': 'descripcionProcedimientoADM',
+    'nro_sicop': 'numeroCartel', // Agregado - requerido por schema
+    'numero_pa': 'numeroPA' // Agregado - requerido por schema
+  },
+  FuncionariosInhibicion: {
+    'cedula_institucion': 'codigoInstitucion',
+    'cédula_institucion': 'codigoInstitucion',
+    'cedula institucion': 'codigoInstitucion',
+    'cedula_funcionario': 'cedulaFuncionario',
+    'cédula_funcionario': 'cedulaFuncionario',
+    'cedula funcionario': 'cedulaFuncionario',
+    'nombre_funcionario': 'nombreFuncionario',
+    'nombre funcionario': 'nombreFuncionario',
+    'fecha_inicio': 'fechaInicio',
+    'fecha_fin': 'fechaFin'
+  },
+  Sistemas: {
+    'nro_sicop': 'numeroCartel', // Agregado - requerido por schema
+    'numero_linea': 'numeroLinea', // Agregado - requerido por schema
+    'numero_partida': 'numeroPartida' // Agregado - requerido por schema
+  },
+  SistemaEvaluacionOfertas: {
+    'nro_sicop': 'numeroCartel' // Agregado - requerido por schema
+  },
+  ReajustePrecios: {
+    'nro_contrato': 'idContrato', // Agregado - requerido por schema
+    'numero_reajuste': 'numeroReajuste' // Agregado - requerido por schema
   }
 };

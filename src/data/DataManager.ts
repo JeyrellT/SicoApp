@@ -16,6 +16,15 @@ import {
   Contrato,
   EstadisticaBusqueda
 } from '../types/entities';
+import {
+  ReporteEjecutivo,
+  ResumenGeneral,
+  TendenciasMercado,
+  AnalisisCompetenciaDetallado,
+  RankingProveedor,
+  Oportunidad,
+  ReporteEjecutivoParametros
+} from '../types/reports';
 import { INDICES_TABLAS, MAPEO_ARCHIVOS, MAPEO_HEADERS_POR_TABLA } from './relations';
 
 export class SicopDataManager {
@@ -35,7 +44,12 @@ export class SicopDataManager {
   
   // Cache para reglas de sectores combinadas (sistema + manuales)
   private combinedSectorRulesCache: Record<string, RegExp[]> | null = null;
+  private combinedSectorRulesCacheKey: string = ''; // Hash de la configuración usada para el cache
   private readonly cacheMetadataFields = new Set<string>(['_YEAR', '_MONTH', '_FILE_SOURCE', '_UPLOAD_DATE']);
+
+  // Cache de montos calculados para optimizar reportes
+  private montoCache: Map<string, { monto: number; fuente: string; confianza: number }> = new Map();
+  private montoPorContratoCache: Map<string, number> | null = null;
 
   public setLoggingMode(mode: 'concise' | 'verbose') { this.loggingMode = mode; }
 
@@ -724,18 +738,21 @@ export class SicopDataManager {
       window.addEventListener('manualCategoriesUpdated', () => {
         console.log('🔄 Categorías manuales actualizadas, limpiando cache de reglas');
         this.combinedSectorRulesCache = null;
+        this.combinedSectorRulesCacheKey = '';
       });
       
       // Escuchar cambios en configuración de categorías
       window.addEventListener('categoryConfigurationUpdated', () => {
         console.log('🔄 Configuración de categorías actualizada, limpiando cache de reglas');
         this.combinedSectorRulesCache = null;
+        this.combinedSectorRulesCacheKey = '';
       });
       
       // Escuchar cambios en subcategorías
       window.addEventListener('subcategoryConfigurationUpdated', () => {
         console.log('🔄 Subcategorías actualizadas, limpiando cache de reglas');
         this.combinedSectorRulesCache = null;
+        this.combinedSectorRulesCacheKey = '';
       });
     }
   }
@@ -827,6 +844,25 @@ export class SicopDataManager {
       this.generarEstadisticasIniciales();
     // Resumen conciso de validación y cobertura de headers
     this.logValidationSummary({ showSamples: false });
+      
+      // DIAGNÓSTICO DE CAMPOS DE MONTO
+      console.group('🔍 Diagnóstico de Campos de Monto');
+      this.diagnosticarCamposMontos('Contratos', true);
+      this.diagnosticarCamposMontos('LineasContratadas', false);
+      this.diagnosticarCamposMontos('AdjudicacionesFirme', false);
+      console.groupEnd();
+      
+      // VALIDACIÓN DE INTEGRIDAD DE MONTOS
+      const validacion = this.validarIntegridadMontos();
+      if (validacion.advertencias.length > 0) {
+        console.group('⚠️ Advertencias de Integridad de Datos');
+        validacion.advertencias.forEach(adv => console.warn(adv));
+        console.log('📊 Estadísticas detalladas:', validacion.estadisticas);
+        console.groupEnd();
+      }
+      
+      // PRE-CALCULAR MONTOS PARA OPTIMIZAR REPORTES
+      this.precalcularMontos();
       
       this.isLoaded = true;
       this.loadingProgress = 100;
@@ -1085,7 +1121,16 @@ export class SicopDataManager {
       'fecharecepcion': 'fechaRecepcion'
     };
 
-    return mapeos[normalizado] || normalizado;
+    if (mapeos[normalizado]) {
+      return mapeos[normalizado];
+    }
+
+    if (normalizado.includes('_')) {
+      const camel = normalizado.replace(/_([a-z0-9])/g, (_, char) => char.toUpperCase());
+      return camel;
+    }
+
+    return normalizado;
   }
 
   /**
@@ -2998,6 +3043,844 @@ export class SicopDataManager {
   }
 
   // ================================
+  // REPORTES EJECUTIVOS CENTRALIZADOS
+  // ================================
+
+  public generarReporteEjecutivo(parametros: ReporteEjecutivoParametros = {}): ReporteEjecutivo {
+    const periodo = parametros.periodo ?? this.obtenerPeriodoDefault();
+    const resumenGeneral = this.generarResumenGeneral(periodo, parametros.sectores);
+    const tendenciasMercado = this.analizarTendenciasMercado(periodo, parametros.sectores);
+    const analisisCompetencia = this.analizarCompetenciaDetallado(parametros.competidores, periodo);
+    const oportunidades = parametros.incluirOportunidades
+      ? this.identificarOportunidades(parametros.idProveedor, parametros.sectores)
+      : [];
+    const recomendaciones = this.generarRecomendaciones({
+      ...parametros,
+      periodo,
+      analisisCompetencia,
+      resumenGeneral
+    });
+
+    return {
+      resumenGeneral,
+      tendenciasMercado,
+      analisisCompetencia,
+      oportunidades,
+      recomendaciones
+    };
+  }
+
+  public analizarPosicionCompetitiva(idProveedor: string, periodo?: { inicio: Date; fin: Date }): any {
+    const proveedor = this.obtenerDatos('Proveedores')
+      .find((p: any) => p.idProveedor === idProveedor);
+
+    if (!proveedor) {
+      throw new Error(`Proveedor ${idProveedor} no encontrado`);
+    }
+
+    let contratos = this.obtenerDatos('Contratos')
+      .filter((c: any) => c.idProveedor === idProveedor);
+
+    if (periodo) {
+      contratos = contratos.filter((c: any) => this.estaEnPeriodo(c.fechaFirma, periodo));
+    }
+
+    const ofertas = this.obtenerDatos('Ofertas')
+      .filter((o: any) => o.idProveedor === idProveedor);
+
+    const lineasAdjudicadas = this.obtenerDatos('LineasAdjudicadas')
+      .filter((l: any) => l.idProveedorAdjudicado === idProveedor);
+
+    const tasaExito = ofertas.length > 0 ? (contratos.length / ofertas.length) * 100 : 0;
+    // Usar método robusto y optimizado para calcular monto total
+    const montoTotal = _.sumBy(contratos, (c: any) => this.obtenerMontoContratoPreciso(c));
+
+    const competidoresDirectos = this.obtenerCompetidoresDirectos(idProveedor);
+    const sectoresActividad = this.analizarSectoresActividad(idProveedor);
+
+    return {
+      proveedor: proveedor.nombreProveedor,
+      estadisticas: {
+        totalContratos: contratos.length,
+        montoTotal,
+        montoPromedio: contratos.length ? montoTotal / contratos.length : 0,
+        tasaExito,
+        totalOfertas: ofertas.length,
+        lineasGanadas: lineasAdjudicadas.length
+      },
+      competidoresDirectos,
+      sectoresActividad,
+      fortalezas: this.identificarFortalezasProveedor(idProveedor),
+      debilidadesAmenazas: this.identificarDebilidadesProveedor(idProveedor),
+      recomendacionesEstrategicas: this.generarRecomendacionesEstrategicas(idProveedor)
+    };
+  }
+
+  public analizarTendenciasPrecios(sectores: string[], periodo?: { inicio: Date; fin: Date }): any {
+    const lineasCartel = this.obtenerDatos('DetalleLineaCartel');
+    const lineasAdjudicadas = this.obtenerDatos('LineasAdjudicadas');
+    const carteles = this.obtenerDatos('DetalleCarteles');
+
+    const lineasSector = lineasCartel.filter((linea: any) => {
+      const cartel = carteles.find((c: any) => c.numeroCartel === linea.numeroCartel);
+      if (!cartel) return false;
+
+      if (periodo && !this.estaEnPeriodo(cartel.fechaPublicacion, periodo)) {
+        return false;
+      }
+
+      const textoCartel = `${cartel.nombreCartel || ''} ${cartel.descripcionCartel || ''} ${linea.descripcionLinea || ''}`.toLowerCase();
+      return sectores.some(sector => textoCartel.includes(sector.toLowerCase()));
+    });
+
+    const preciosHistoricos: any[] = [];
+
+    lineasSector.forEach((linea: any) => {
+      const adjudicacion = lineasAdjudicadas.find((adj: any) =>
+        adj.numeroCartel === linea.numeroCartel && adj.numeroLinea === linea.numeroLinea
+      );
+
+      if (adjudicacion) {
+        const cartel = carteles.find((c: any) => c.numeroCartel === linea.numeroCartel);
+        preciosHistoricos.push({
+          fecha: cartel?.fechaPublicacion,
+          producto: linea.descripcionLinea,
+          precio: this.normalizarNumero(adjudicacion.precioAdjudicado),
+          cantidad: this.normalizarNumero(adjudicacion.cantidadAdjudicada),
+          proveedor: adjudicacion.idProveedorAdjudicado,
+          cartel: linea.numeroCartel
+        });
+      }
+    });
+
+    const productosSimilares = this.agruparProductosSimilares(preciosHistoricos);
+
+    return {
+      totalProductos: Object.keys(productosSimilares).length,
+      tendenciasPorProducto: this.calcularTendenciasPorProducto(productosSimilares),
+      variabilidadPrecios: this.calcularVariabilidadPrecios(preciosHistoricos),
+      proveedoresDominantes: this.identificarProveedoresDominantes(preciosHistoricos)
+    };
+  }
+
+  private obtenerPeriodoDefault(): { inicio: Date; fin: Date } {
+    const fin = new Date();
+    const inicio = new Date();
+    inicio.setFullYear(fin.getFullYear() - 1);
+    return { inicio, fin };
+  }
+
+  private estaEnPeriodo(fecha: any, periodo: { inicio: Date; fin: Date }): boolean {
+    const dt = this.toDate(fecha);
+    if (!dt) return false;
+    return dt >= periodo.inicio && dt <= periodo.fin;
+  }
+
+  private toDate(value: any): Date | null {
+    if (!value) return null;
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? null : value;
+    }
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private normalizarNumero(valor: any, fallback = 0): number {
+    if (typeof valor === 'number') {
+      return isNaN(valor) ? fallback : valor;
+    }
+    if (valor == null || valor === '') return fallback;
+    const parsed = this.parseNumeroFlexible(String(valor));
+    return parsed != null && !isNaN(parsed) ? parsed : fallback;
+  }
+
+  /**
+   * Obtiene el monto de un contrato intentando múltiples campos posibles
+   * Solución robusta para diferentes formatos de CSV
+   */
+  private obtenerMontoContrato(contrato: any): number {
+    // Lista priorizada de campos posibles para monto
+    const camposPosibles = [
+      'montoContrato',       // Campo estándar normalizado
+      'montoTotal',          // Variante común
+      'monto',               // Genérico
+      'valorContrato',       // Alternativa
+      'montoAdjudicado',     // Desde adjudicación
+      'montoTotalContrato',  // Variante extendida
+      'precioTotal',         // Precio en vez de monto
+      'importe',             // Término contable
+      'total',               // Genérico corto
+      'valor',               // Genérico
+      'montoTotalAdjudicado' // De adjudicación firme
+    ];
+    
+    // Intentar cada campo en orden de prioridad
+    for (const campo of camposPosibles) {
+      const valor = contrato[campo];
+      if (valor != null && valor !== '' && valor !== 0) {
+        const montoNormalizado = this.normalizarNumero(valor);
+        if (montoNormalizado > 0) {
+          return montoNormalizado;
+        }
+      }
+    }
+    
+    // Si no se encontró ningún campo válido, retornar 0
+    return 0;
+  }
+
+  /**
+   * ESTRATEGIA ÓPTIMA: Calcula monto de contrato con cascada de fuentes
+   * 
+   * Nivel 1 (95% confianza): Calcula desde LineasContratadas (suma de líneas)
+   * Nivel 2 (70% confianza): Campo directo en Contratos.montoContrato
+   * Nivel 3 (50% confianza): Desde AdjudicacionesFirme (aproximado)
+   * 
+   * Usa caché para evitar recálculos
+   */
+  public obtenerMontoContratoPreciso(contrato: any): number {
+    const idContrato = String(contrato.idContrato || '').trim();
+    if (!idContrato) return 0;
+    
+    // Verificar caché
+    if (this.montoCache.has(idContrato)) {
+      return this.montoCache.get(idContrato)!.monto;
+    }
+    
+    // Nivel 1: Calcular desde LineasContratadas (MÁS PRECISO)
+    const montoLineas = this.calcularMontoDesdeLineas(idContrato);
+    if (montoLineas > 0) {
+      this.montoCache.set(idContrato, { monto: montoLineas, fuente: 'lineas', confianza: 95 });
+      return montoLineas;
+    }
+    
+    // Nivel 2: Campo directo en Contratos (fallback)
+    const montoDirecto = this.obtenerMontoContrato(contrato);
+    if (montoDirecto > 0) {
+      this.montoCache.set(idContrato, { monto: montoDirecto, fuente: 'directo', confianza: 70 });
+      return montoDirecto;
+    }
+    
+    // Nivel 3: Desde AdjudicacionesFirme (último recurso)
+    if (contrato.numeroCartel) {
+      const montoAdjudicacion = this.calcularMontoDesdeAdjudicacion(contrato.numeroCartel);
+      if (montoAdjudicacion > 0) {
+        this.montoCache.set(idContrato, { monto: montoAdjudicacion, fuente: 'adjudicacion', confianza: 50 });
+        return montoAdjudicacion;
+      }
+    }
+    
+    // Sin datos disponibles
+    this.montoCache.set(idContrato, { monto: 0, fuente: 'vacio', confianza: 0 });
+    return 0;
+  }
+
+  /**
+   * Calcula monto de un contrato sumando sus LineasContratadas
+   * Intenta primero monto directo, luego calcula desde precio × cantidad
+   */
+  private calcularMontoDesdeLineas(idContrato: string): number {
+    const lineas = this.obtenerDatos('LineasContratadas')
+      .filter((l: any) => String(l.idContrato || '').trim() === idContrato);
+    
+    if (lineas.length === 0) return 0;
+    
+    const montoTotal = _.sumBy(lineas, (linea: any) => {
+      // Intentar campos de monto directo
+      const camposMonto = [
+        'montoLineaContratada', 'montoTotal', 'monto', 
+        'montoLineaAdjudicada', 'valorLinea'
+      ];
+      
+      for (const campo of camposMonto) {
+        const valor = linea[campo];
+        if (valor != null && valor !== '' && valor !== 0) {
+          const monto = this.normalizarNumero(valor);
+          if (monto > 0) return monto;
+        }
+      }
+      
+      // Si no hay monto directo, calcular desde precio × cantidad
+      const camposPrecio = [
+        'precioUnitario', 'precioAdjudicado', 'precioUnitarioAdjudicado',
+        'precio', 'precioUnitarioContratado'
+      ];
+      
+      const camposCantidad = [
+        'cantidad', 'cantidadContratada', 'cantidadAdjudicada'
+      ];
+      
+      let precio = 0;
+      for (const campo of camposPrecio) {
+        const valor = linea[campo];
+        if (valor != null && valor !== '' && valor !== 0) {
+          precio = this.normalizarNumero(valor);
+          if (precio > 0) break;
+        }
+      }
+      
+      let cantidad = 0;
+      for (const campo of camposCantidad) {
+        const valor = linea[campo];
+        if (valor != null && valor !== '' && valor !== 0) {
+          cantidad = this.normalizarNumero(valor);
+          if (cantidad > 0) break;
+        }
+      }
+      
+      if (precio > 0 && cantidad > 0) {
+        return precio * cantidad;
+      }
+      
+      return 0;
+    });
+    
+    return montoTotal;
+  }
+
+  /**
+   * Calcula monto aproximado desde AdjudicacionesFirme
+   * Divide el monto total adjudicado entre el número de contratos del cartel
+   */
+  private calcularMontoDesdeAdjudicacion(numeroCartel: string): number {
+    const adjudicaciones = this.obtenerDatos('AdjudicacionesFirme');
+    const adjudicacion = adjudicaciones.find((a: any) => a.numeroCartel === numeroCartel);
+    
+    if (!adjudicacion || !adjudicacion.montoTotalAdjudicado) return 0;
+    
+    // Contar contratos del mismo cartel para dividir proporcionalmente
+    const contratosCartel = this.obtenerDatos('Contratos')
+      .filter((c: any) => c.numeroCartel === numeroCartel);
+    
+    if (contratosCartel.length === 0) return 0;
+    
+    const montoTotal = this.normalizarNumero(adjudicacion.montoTotalAdjudicado);
+    return montoTotal / contratosCartel.length;
+  }
+
+  /**
+   * Pre-calcula todos los montos de contratos para optimizar reportes
+   * Ejecutar después de cargar datos
+   */
+  private precalcularMontos(): void {
+    console.time('⚡ Precálculo de montos');
+    
+    const contratos = this.obtenerDatos('Contratos');
+    if (!contratos || contratos.length === 0) {
+      console.timeEnd('⚡ Precálculo de montos');
+      return;
+    }
+    
+    // Limpiar caché anterior
+    this.montoCache.clear();
+    
+    // Calcular monto para cada contrato
+    contratos.forEach((contrato: any) => {
+      this.obtenerMontoContratoPreciso(contrato);
+    });
+    
+    // Generar estadísticas de distribución de fuentes
+    const distribucion: Record<string, number> = {};
+    for (const { fuente } of this.montoCache.values()) {
+      distribucion[fuente] = (distribucion[fuente] || 0) + 1;
+    }
+    
+    const totalCalculados = this.montoCache.size;
+    const conMontoValido = Array.from(this.montoCache.values())
+      .filter(info => info.monto > 0).length;
+    
+    console.timeEnd('⚡ Precálculo de montos');
+    console.log(`📊 Montos calculados: ${conMontoValido}/${totalCalculados} (${((conMontoValido/totalCalculados)*100).toFixed(1)}%)`);
+    console.log(`📈 Distribución de fuentes:`, distribucion);
+    
+    // Advertencia si más del 20% está vacío
+    const porcentajeVacio = ((distribucion.vacio || 0) / totalCalculados) * 100;
+    if (porcentajeVacio > 20) {
+      console.warn(`⚠️ ${porcentajeVacio.toFixed(1)}% de contratos sin monto válido`);
+    }
+  }
+
+  /**
+   * Diagnostica qué campos relacionados con montos existen en una tabla
+   * Útil para debugging cuando los montos salen en 0
+   */
+  private diagnosticarCamposMontos(tabla: string, mostrarMuestra: boolean = false): void {
+    const datos = this.obtenerDatos(tabla);
+    if (!datos || !datos.length) {
+      console.warn(`[${tabla}] ⚠️ Tabla vacía o no existe`);
+      return;
+    }
+    
+    const muestra = datos[0];
+    const camposDisponibles = Object.keys(muestra);
+    
+    // Buscar campos que podrían contener montos
+    const camposRelacionadosConMonto = camposDisponibles.filter(c => 
+      /monto|precio|total|valor|importe|amount|cost|price/i.test(c)
+    );
+    
+    console.group(`[${tabla}] 🔍 Diagnóstico de Campos de Monto`);
+    console.log(`📊 Total de registros: ${datos.length}`);
+    console.log(`📋 Campos disponibles: ${camposDisponibles.length}`);
+    console.log(`💰 Campos relacionados con monto: ${camposRelacionadosConMonto.length}`);
+    
+    if (camposRelacionadosConMonto.length > 0) {
+      console.log(`✅ Campos encontrados:`, camposRelacionadosConMonto);
+      
+      if (mostrarMuestra) {
+        const valoresMuestra: any = {};
+        camposRelacionadosConMonto.forEach(campo => {
+          valoresMuestra[campo] = muestra[campo];
+        });
+        console.log(`📝 Muestra de valores:`, valoresMuestra);
+        
+        // Estadísticas de llenado
+        camposRelacionadosConMonto.forEach(campo => {
+          const conValor = datos.filter((d: any) => d[campo] != null && d[campo] !== '' && d[campo] !== 0).length;
+          const porcentaje = ((conValor / datos.length) * 100).toFixed(1);
+          console.log(`  ${campo}: ${conValor}/${datos.length} (${porcentaje}%)`);
+        });
+      }
+    } else {
+      console.warn(`❌ No se encontraron campos de monto en esta tabla`);
+      console.log(`📋 Todos los campos:`, camposDisponibles);
+    }
+    console.groupEnd();
+  }
+
+  /**
+   * Valida la integridad de los datos de montos
+   * Retorna advertencias si hay problemas significativos
+   */
+  private validarIntegridadMontos(): {
+    tablasConProblemas: string[];
+    advertencias: string[];
+    estadisticas: Record<string, any>;
+  } {
+    const problemas: string[] = [];
+    const advertencias: string[] = [];
+    const estadisticas: Record<string, any> = {};
+    
+    // Validar tabla Contratos
+    const contratos = this.obtenerDatos('Contratos');
+    if (contratos && contratos.length > 0) {
+      const contratosSinMonto = contratos.filter(c => {
+        const monto = this.obtenerMontoContrato(c);
+        return monto === 0;
+      });
+      
+      const porcentajeSinMonto = (contratosSinMonto.length / contratos.length) * 100;
+      estadisticas['Contratos'] = {
+        total: contratos.length,
+        sinMonto: contratosSinMonto.length,
+        porcentajeSinMonto: porcentajeSinMonto.toFixed(1) + '%'
+      };
+      
+      if (porcentajeSinMonto > 50) {
+        problemas.push('Contratos');
+        advertencias.push(
+          `⚠️ CRÍTICO: ${contratosSinMonto.length}/${contratos.length} contratos (${porcentajeSinMonto.toFixed(1)}%) sin monto válido`
+        );
+      } else if (porcentajeSinMonto > 20) {
+        advertencias.push(
+          `⚠️ ADVERTENCIA: ${contratosSinMonto.length}/${contratos.length} contratos (${porcentajeSinMonto.toFixed(1)}%) sin monto válido`
+        );
+      }
+    }
+    
+    // Validar tabla LineasContratadas
+    const lineasContratadas = this.obtenerDatos('LineasContratadas');
+    if (lineasContratadas && lineasContratadas.length > 0) {
+      const lineasSinMonto = lineasContratadas.filter((l: any) => 
+        (!l.montoTotal || l.montoTotal === 0) &&
+        (!l.montoLineaContratada || l.montoLineaContratada === 0) &&
+        (!l.precioUnitario || l.precioUnitario === 0)
+      );
+      
+      const porcentajeSinMonto = (lineasSinMonto.length / lineasContratadas.length) * 100;
+      estadisticas['LineasContratadas'] = {
+        total: lineasContratadas.length,
+        sinMonto: lineasSinMonto.length,
+        porcentajeSinMonto: porcentajeSinMonto.toFixed(1) + '%'
+      };
+      
+      if (porcentajeSinMonto > 50) {
+        problemas.push('LineasContratadas');
+        advertencias.push(
+          `⚠️ ${lineasSinMonto.length}/${lineasContratadas.length} líneas contratadas (${porcentajeSinMonto.toFixed(1)}%) sin monto válido`
+        );
+      }
+    }
+    
+    return { tablasConProblemas: problemas, advertencias, estadisticas };
+  }
+
+  private generarResumenGeneral(periodo: { inicio: Date; fin: Date }, sectores?: string[]): ResumenGeneral {
+    let carteles = this.obtenerDatos('DetalleCarteles')
+      .filter((c: any) => this.estaEnPeriodo(c.fechaPublicacion, periodo));
+
+    let contratos = this.obtenerDatos('Contratos')
+      .filter((c: any) => this.estaEnPeriodo(c.fechaFirma, periodo));
+
+    if (sectores && sectores.length > 0) {
+      carteles = this.filtrarPorSectores(carteles, sectores);
+      contratos = this.filtrarContratosPorSectores(contratos, sectores);
+    }
+
+    // Calcular monto total usando método robusto y optimizado
+    const montoTotal = _.sumBy(contratos, (c: any) => this.obtenerMontoContratoPreciso(c));
+    const crecimiento = this.calcularCrecimientoAnual(contratos, periodo);
+
+    return {
+      periodo,
+      totalLicitaciones: carteles.length,
+      totalContratos: contratos.length,
+      montoTotalAdjudicado: montoTotal,
+      crecimientoAnual: crecimiento,
+      institucionesMasActivas: this.obtenerInstitucionesMasActivas(carteles, contratos),
+      sectoresPrincipales: this.obtenerSectoresPrincipales(carteles)
+    };
+  }
+
+  private analizarTendenciasMercado(periodo: { inicio: Date; fin: Date }, sectores?: string[]): TendenciasMercado {
+    let carteles = this.obtenerDatos('DetalleCarteles')
+      .filter((c: any) => this.estaEnPeriodo(c.fechaPublicacion, periodo));
+
+    let contratos = this.obtenerDatos('Contratos')
+      .filter((c: any) => this.estaEnPeriodo(c.fechaFirma, periodo));
+
+    if (sectores && sectores.length > 0) {
+      carteles = this.filtrarPorSectores(carteles, sectores);
+      contratos = this.filtrarContratosPorSectores(contratos, sectores);
+    }
+
+    return {
+      evolucionMontos: this.calcularEvolucionMontos(contratos),
+      evolucionCantidad: this.calcularEvolucionCantidad(carteles),
+      estacionalidad: this.calcularEstacionalidad(carteles),
+      competenciaPromedio: this.calcularCompetenciaPromedio(carteles),
+      tiempoPromedioProceso: this.calcularTiempoPromedioProceso(carteles)
+    };
+  }
+
+  private analizarCompetenciaDetallado(competidores?: string[], periodo?: { inicio: Date; fin: Date }): AnalisisCompetenciaDetallado {
+    let contratos = this.obtenerDatos('Contratos');
+
+    if (periodo) {
+      contratos = contratos.filter((c: any) => this.estaEnPeriodo(c.fechaFirma, periodo));
+    }
+
+    if (competidores && competidores.length > 0) {
+      contratos = contratos.filter((c: any) => competidores.includes(c.idProveedor));
+    }
+
+    const ranking = this.generarRankingProveedores(contratos);
+
+    return {
+      ranking,
+      concentracionMercado: this.calcularConcentracionMercado(ranking),
+      nuevosEntrantes: this.identificarNuevosEntrantes(periodo),
+      proveedoresEnDecadencia: this.identificarProveedoresEnDecadencia(periodo),
+      colaboracionesFrecuentes: this.analizarColaboraciones(contratos)
+    };
+  }
+
+  private identificarOportunidades(idProveedor?: string, sectores?: string[]): Oportunidad[] {
+    const oportunidades: Oportunidad[] = [];
+
+    oportunidades.push(...this.identificarNichosPocaCompetencia(sectores));
+    oportunidades.push(...this.identificarMercadosCrecientes(sectores));
+
+    if (idProveedor) {
+      oportunidades.push(...this.identificarClientesPotenciales(idProveedor));
+    }
+
+    return _.orderBy(oportunidades, 'montoEstimado', 'desc').slice(0, 10);
+  }
+
+  private filtrarPorSectores(carteles: any[], sectores: string[]): any[] {
+    return carteles.filter(cartel => {
+      const texto = `${cartel.nombreCartel || ''} ${cartel.descripcionCartel || ''}`.toLowerCase();
+      return sectores.some(sector => texto.includes(sector.toLowerCase()));
+    });
+  }
+
+  private filtrarContratosPorSectores(contratos: any[], sectores: string[]): any[] {
+    const lineasContratadas = this.obtenerDatos('LineasContratadas');
+    const lineasCartel = this.obtenerDatos('DetalleLineaCartel');
+
+    const contratosConSector = new Set<string>();
+
+    lineasContratadas.forEach((lineaContratada: any) => {
+      const lineaCartel = lineasCartel.find((lc: any) =>
+        lc.numeroCartel === lineaContratada.numeroCartel &&
+        lc.numeroLinea === lineaContratada.numeroLinea
+      );
+
+      if (lineaCartel) {
+        const descripcion = String(lineaCartel.descripcionLinea || '').toLowerCase();
+        const tieneSector = sectores.some(sector => descripcion.includes(sector.toLowerCase()));
+
+        if (tieneSector) {
+          contratosConSector.add(String(lineaContratada.idContrato));
+        }
+      }
+    });
+
+    return contratos.filter(contrato => contratosConSector.has(String(contrato.idContrato)));
+  }
+
+  private calcularCrecimientoAnual(contratos: any[], periodo: { inicio: Date; fin: Date }): number {
+    const añoInicio = periodo.inicio.getFullYear();
+    const añoFin = periodo.fin.getFullYear();
+
+    if (añoInicio === añoFin) return 0;
+
+    const contratosInicio = contratos.filter(c => this.toDate(c.fechaFirma)?.getFullYear() === añoInicio);
+    const contratosFin = contratos.filter(c => this.toDate(c.fechaFirma)?.getFullYear() === añoFin);
+
+    // Usar método robusto y optimizado para obtener montos
+    const montoInicio = _.sumBy(contratosInicio, (c: any) => this.obtenerMontoContratoPreciso(c)) || 1;
+    const montoFin = _.sumBy(contratosFin, (c: any) => this.obtenerMontoContratoPreciso(c)) || 0;
+
+    return ((montoFin - montoInicio) / montoInicio) * 100;
+  }
+
+  private obtenerInstitucionesMasActivas(carteles: any[], contratos: any[]): any[] {
+    const instituciones = this.obtenerDatos('InstitucionesRegistradas');
+
+    const actividad = _.groupBy(carteles, 'codigoInstitucion');
+    const montos = _.groupBy(contratos, 'codigoInstitucion');
+
+    return _.map(actividad, (cartelesInst, codigo) => {
+      const institucion = instituciones.find((i: any) => i.codigoInstitucion === codigo);
+      const contratosInst = montos[codigo] || [];
+
+      return {
+        nombre: institucion?.nombreInstitucion || 'Desconocida',
+        cantidad: cartelesInst.length,
+        // Usar método robusto y optimizado para sumar montos
+        monto: _.sumBy(contratosInst, (c: any) => this.obtenerMontoContratoPreciso(c))
+      };
+    })
+    .filter((inst: any) => inst.cantidad > 0)
+    .sort((a: any, b: any) => b.monto - a.monto)
+    .slice(0, 10);
+  }
+
+  private obtenerSectoresPrincipales(carteles: any[]): any[] {
+    const palabrasClave = [
+      'medicamento', 'salud', 'educación', 'tecnología', 'construcción',
+      'transporte', 'seguridad', 'alimentos', 'servicios', 'consultoría'
+    ];
+
+    const sectores = palabrasClave.map(sector => {
+      const cartelesDelSector = carteles.filter(cartel => {
+        const texto = `${cartel.nombreCartel || ''} ${cartel.descripcionCartel || ''}`.toLowerCase();
+        return texto.includes(sector);
+      });
+
+      return {
+        sector,
+        participacion: carteles.length ? (cartelesDelSector.length / carteles.length) * 100 : 0
+      };
+    })
+    .filter(sector => sector.participacion > 0)
+    .sort((a, b) => b.participacion - a.participacion);
+
+    return sectores.slice(0, 5);
+  }
+
+  private calcularEvolucionMontos(contratos: any[]): any[] {
+    const porMes = _.groupBy(contratos, contrato => {
+      const fecha = this.toDate(contrato.fechaFirma);
+      return fecha ? `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}` : 'Sin fecha';
+    });
+
+    return _.map(porMes, (contratosDelMes, periodo) => ({
+      periodo,
+      // Usar método robusto y optimizado para sumar montos
+      monto: _.sumBy(contratosDelMes, (c: any) => this.obtenerMontoContratoPreciso(c))
+    }))
+    .filter(item => item.periodo !== 'Sin fecha')
+    .sort((a, b) => a.periodo.localeCompare(b.periodo));
+  }
+
+  private calcularEvolucionCantidad(carteles: any[]): any[] {
+    const porMes = _.groupBy(carteles, cartel => {
+      const fecha = this.toDate(cartel.fechaPublicacion);
+      return fecha ? `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}` : 'Sin fecha';
+    });
+
+    return _.map(porMes, (cartelesDelMes, periodo) => ({
+      periodo,
+      cantidad: cartelesDelMes.length
+    }))
+    .filter(item => item.periodo !== 'Sin fecha')
+    .sort((a, b) => a.periodo.localeCompare(b.periodo));
+  }
+
+  private calcularEstacionalidad(carteles: any[]): any[] {
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+    const porMes = _.groupBy(carteles, cartel => {
+      const fecha = this.toDate(cartel.fechaPublicacion);
+      return fecha ? fecha.getMonth() : -1;
+    });
+
+    return meses.map((mes, index) => ({
+      mes,
+      actividad: (porMes[index] || []).length
+    }));
+  }
+
+  private calcularCompetenciaPromedio(_: any[]): number {
+    const lineasRecibidas = this.obtenerDatos('LineasRecibidas');
+    const totalOfertas = lineasRecibidas.reduce((acc: number, linea: any) => acc + this.normalizarNumero(linea.cantidadOfertasRecibidas), 0);
+    return lineasRecibidas.length ? totalOfertas / lineasRecibidas.length : 0;
+  }
+
+  private calcularTiempoPromedioProceso(carteles: any[]): number {
+    const fechasPorEtapas = this.obtenerDatos('FechaPorEtapas');
+
+    const tiempos = carteles.map(cartel => {
+      const fechas = fechasPorEtapas.find((f: any) => f.numeroCartel === cartel.numeroCartel);
+      if (!fechas) return 0;
+
+      const inicio = this.toDate(fechas.fechaPublicacion);
+      const fin = this.toDate(fechas.fechaAdjudicacion);
+      if (!inicio || !fin) return 0;
+
+      return (fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24);
+    }).filter(tiempo => tiempo > 0);
+
+    return _.mean(tiempos) || 0;
+  }
+
+  private generarRankingProveedores(contratos: any[]): RankingProveedor[] {
+    const proveedores = this.obtenerDatos('Proveedores');
+    const ofertas = this.obtenerDatos('Ofertas');
+
+    const porProveedor = _.groupBy(contratos, 'idProveedor');
+
+    return _.map(porProveedor, (contratosProveedor, idProveedor) => {
+      const proveedor = proveedores.find((p: any) => p.idProveedor === idProveedor);
+      const ofertasProveedor = ofertas.filter((o: any) => o.idProveedor === idProveedor);
+      // Usar método robusto y optimizado para calcular monto total
+      const montoTotal = _.sumBy(contratosProveedor, (c: any) => this.obtenerMontoContratoPreciso(c));
+
+      return {
+        id: idProveedor,
+        nombre: proveedor?.nombreProveedor || 'Desconocido',
+        posicion: 0,
+        cantidadContratos: contratosProveedor.length,
+        montoTotal,
+        marketShare: 0,
+        tasaExito: ofertasProveedor.length > 0 ?
+          (contratosProveedor.length / ofertasProveedor.length) * 100 : 0,
+        sectoresPrincipales: [],
+        crecimiento: 0
+      } as RankingProveedor;
+    })
+    .sort((a, b) => b.montoTotal - a.montoTotal)
+    .map((proveedor, index) => ({ ...proveedor, posicion: index + 1 }));
+  }
+
+  private calcularConcentracionMercado(ranking: RankingProveedor[]): number {
+    const montoTotal = _.sumBy(ranking, 'montoTotal');
+    const top5 = _.take(ranking, 5);
+    const montoTop5 = _.sumBy(top5, 'montoTotal');
+
+    return montoTotal > 0 ? (montoTop5 / montoTotal) * 100 : 0;
+  }
+
+  private identificarNuevosEntrantes(_: { inicio: Date; fin: Date } | undefined): Proveedor[] {
+    // TODO: Implementar lógica para identificar nuevos entrantes
+    return [];
+  }
+
+  private identificarProveedoresEnDecadencia(_: { inicio: Date; fin: Date } | undefined): Proveedor[] {
+    // TODO: Implementar lógica para identificar proveedores en decadencia
+    return [];
+  }
+
+  private analizarColaboraciones(_: any[]): any[] {
+    // TODO: Implementar análisis de colaboraciones frecuentes
+    return [];
+  }
+
+  private identificarNichosPocaCompetencia(_: string[] | undefined): Oportunidad[] {
+    // TODO: Implementar identificación de nichos con baja competencia
+    return [];
+  }
+
+  private identificarMercadosCrecientes(_: string[] | undefined): Oportunidad[] {
+    // TODO: Implementar identificación de mercados en crecimiento
+    return [];
+  }
+
+  private identificarClientesPotenciales(_: string): Oportunidad[] {
+    // TODO: Implementar identificación de clientes potenciales
+    return [];
+  }
+
+  private obtenerCompetidoresDirectos(_: string): any[] {
+    // TODO: Implementar obtención de competidores directos
+    return [];
+  }
+
+  private analizarSectoresActividad(_: string): any[] {
+    // TODO: Implementar análisis de sectores de actividad
+    return [];
+  }
+
+  private identificarFortalezasProveedor(_: string): string[] {
+    // TODO: Implementar identificación de fortalezas del proveedor
+    return [];
+  }
+
+  private identificarDebilidadesProveedor(_: string): string[] {
+    // TODO: Implementar identificación de debilidades del proveedor
+    return [];
+  }
+
+  private generarRecomendacionesEstrategicas(_: string): string[] {
+    // TODO: Implementar recomendaciones estratégicas específicas
+    return [];
+  }
+
+  private agruparProductosSimilares(precios: any[]): Record<string, any[]> {
+    // TODO: Implementar agrupación de productos similares
+    return {};
+  }
+
+  private calcularTendenciasPorProducto(productos: Record<string, any[]>): any[] {
+    // TODO: Implementar cálculo de tendencias por producto
+    return [];
+  }
+
+  private calcularVariabilidadPrecios(_: any[]): any {
+    // TODO: Implementar cálculo de variabilidad de precios
+    return {};
+  }
+
+  private identificarProveedoresDominantes(_: any[]): any[] {
+    // TODO: Implementar identificación de proveedores dominantes
+    return [];
+  }
+
+  private generarRecomendaciones(_: any): string[] {
+    const recomendaciones: string[] = [];
+
+    recomendaciones.push('Considere diversificar su portafolio de clientes');
+    recomendaciones.push('Analice las tendencias estacionales para optimizar sus ofertas');
+    recomendaciones.push('Evalúe oportunidades en nichos con poca competencia');
+
+    return recomendaciones;
+  }
+
+  // ================================
   // PROVEEDORES - RESOLUCIÓN UNIFICADA DE NOMBRES
   // ================================
   private buildProveedorNombreMap(): Map<string, string> {
@@ -3217,7 +4100,14 @@ export class SicopDataManager {
   private getCategoryConfiguration(): { categorias: Record<string, boolean> } {
     try {
       const configJson = localStorage.getItem('sicop.categoryConfiguration.v1');
-      if (!configJson) return { categorias: {} };
+      if (!configJson) {
+        // Si no hay configuración, todas las categorías del sistema están activas por defecto
+        const defaultConfig: Record<string, boolean> = {};
+        Object.keys(this.SECTOR_RULES).forEach(cat => {
+          defaultConfig[cat] = true;
+        });
+        return { categorias: defaultConfig };
+      }
       
       const config = JSON.parse(configJson);
       return config || { categorias: {} };
@@ -3228,13 +4118,27 @@ export class SicopDataManager {
   }
 
   public getSectorRules(): Record<string, RegExp[]> {
-    // Usar cache si está disponible
-    if (this.combinedSectorRulesCache) {
+    // Obtener configuración actual
+    const config = this.getCategoryConfiguration();
+    const manualCategoriesJson = localStorage.getItem('sicop.manualCategories.v1') || '[]';
+    
+    // Crear un hash único de la configuración actual
+    const currentConfigKey = JSON.stringify(config) + '|' + manualCategoriesJson;
+    
+    // Verificar si el cache está vigente
+    if (this.combinedSectorRulesCache && this.combinedSectorRulesCacheKey === currentConfigKey) {
+      console.log('[DataManager.getSectorRules] ✅ CACHE VIGENTE - categorías:', Object.keys(this.combinedSectorRulesCache));
       return this.combinedSectorRulesCache;
     }
     
-    // Obtener configuración de categorías
-    const config = this.getCategoryConfiguration();
+    // Cache inválido o no existe, regenerar
+    if (this.combinedSectorRulesCache) {
+      console.log('[DataManager.getSectorRules] 🔄 REGENERANDO - configuración cambió');
+    } else {
+      console.log('[DataManager.getSectorRules] ✅ GENERANDO NUEVO - no hay cache');
+    }
+    
+    console.log('[DataManager.getSectorRules] Configuración cargada:', config);
     
     // Combinar reglas del sistema con reglas de categorías manuales
     const combined: Record<string, RegExp[]> = {};
@@ -3245,9 +4149,11 @@ export class SicopDataManager {
         combined[categoria] = reglas;
       }
     }
+    console.log('[DataManager.getSectorRules] Categorías del sistema activas:', Object.keys(combined));
     
     // Agregar reglas de categorías manuales (solo las activas)
     const manualRules = this.getManualCategoryRules();
+    console.log('[DataManager.getSectorRules] Categorías manuales:', Object.keys(manualRules));
     for (const [category, regexes] of Object.entries(manualRules)) {
       if (combined[category]) {
         // Si ya existe la categoría, combinar reglas
@@ -3258,14 +4164,26 @@ export class SicopDataManager {
       }
     }
     
-    // Guardar en cache
+    console.log('[DataManager.getSectorRules] ✅ Total combinado:', Object.keys(combined));
+    
+    // Guardar en cache con su clave de configuración
     this.combinedSectorRulesCache = combined;
+    this.combinedSectorRulesCacheKey = currentConfigKey;
     
     return combined;
   }
 
+  /**
+   * Invalida el cache de reglas de categorías (útil para debugging)
+   */
+  public invalidateSectorRulesCache(): void {
+    console.log('[DataManager] 🗑️ Invalidando cache de reglas manualmente');
+    this.combinedSectorRulesCache = null;
+    this.combinedSectorRulesCacheKey = '';
+  }
+
   // Obtener nombres de categorías manuales
-  private getManualCategoryNames(): string[] {
+  public getManualCategoryNames(): string[] {
     try {
       const rulesJson = localStorage.getItem('sicop.manualCategories.v1');
       if (!rulesJson) return [];
@@ -3558,11 +4476,15 @@ export class SicopDataManager {
   const nombreInst = (registroInst.nombreInstitucion || registroInst.siglas || inst) as string;
   const tipoInst = (registroInst.tipoInstitucion || registroInst.tipo || registroInst.tipo_institucion || registroInst.clase || registroInst.clasificacion || '') as string;
 
-  // KPIs basados en Contratos (monto derivado desde LineasContratadas)
+  // KPIs basados en Contratos (monto derivado desde LineasContratadas o campo montoContrato)
   const montoContratos = _.sumBy(contratos, (c: any) => {
     const id = String(c.idContrato || '').trim();
-    const v = montoPorContrato.get(id) || 0;
-    return v;
+    const montoLineas = montoPorContrato.get(id) || 0;
+    // Si existe monto de líneas, usarlo; si no, intentar obtener de montoContrato
+    if (montoLineas > 0) {
+      return montoLineas;
+    }
+    return this.obtenerMontoContrato(c);
   });
   const totalContratos = contratos.length;
   const montoPromContrato = totalContratos ? (montoContratos / totalContratos) : 0;
@@ -4396,17 +5318,18 @@ export class SicopDataManager {
     }
 
     const hhiMarket = (() => {
-  const contratos: any[] = selectedContratos;
-      const total = _.sumBy(contratos, (c: any) => c.montoContrato || 0);
+      const contratos: any[] = selectedContratos;
+      // Usar método robusto y optimizado para calcular montos
+      const total = _.sumBy(contratos, (c: any) => this.obtenerMontoContratoPreciso(c));
       const porProv = _.groupBy(contratos, 'idProveedor');
       const shares = Object.values(porProv).map(arr => {
-        const m = _.sumBy(arr, (c: any) => c.montoContrato || 0);
+        const m = _.sumBy(arr, (c: any) => this.obtenerMontoContratoPreciso(c));
         return total ? m / total : 0;
       });
       const hhi = shares.reduce((s, x) => s + x * x, 0);
       const top5Share = _(porProv)
         .toPairs()
-        .map(([id, arr]: any) => ({ id, monto: _.sumBy(arr, (c: any) => c.montoContrato || 0) }))
+        .map(([id, arr]: any) => ({ id, monto: _.sumBy(arr, (c: any) => this.obtenerMontoContratoPreciso(c)) }))
         .orderBy(['monto'], ['desc'])
         .slice(0, 5)
         .thru(list => (total ? _.sumBy(list, 'monto') / total : 0))

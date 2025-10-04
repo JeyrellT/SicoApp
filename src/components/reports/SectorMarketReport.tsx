@@ -37,21 +37,51 @@ const SectorMarketReport: React.FC<SectorMarketReportProps> = ({ filters }) => {
         return texto.includes(sector.toLowerCase());
       });
 
+      // Mejorar filtrado de contratos: buscar en múltiples fuentes
       const contratosDelSector = contratos.filter(contrato => {
-        // Buscar en líneas contratadas para determinar el sector
+        // 1. Buscar en el cartel asociado al contrato
+        const cartelAsociado = carteles.find(c => c.numeroCartel === contrato.numeroCartel);
+        if (cartelAsociado) {
+          const textoCartel = `${cartelAsociado.nombreCartel || ''} ${cartelAsociado.descripcionCartel || ''}`.toLowerCase();
+          if (textoCartel.includes(sector.toLowerCase())) return true;
+        }
+
+        // 2. Buscar en descripción del contrato si existe
+        if (contrato.descripcionContrato) {
+          const textoContrato = contrato.descripcionContrato.toLowerCase();
+          if (textoContrato.includes(sector.toLowerCase())) return true;
+        }
+
+        // 3. Buscar en líneas contratadas para determinar el sector
         const lineasContratadas = dataManager.obtenerDatos('LineasContratadas')
           .filter(lc => lc.idContrato === contrato.idContrato);
         
-        return lineasContratadas.some(lc => {
-          const lineaCartel = dataManager.obtenerDatos('DetalleLineaCartel')
-            .find(dlc => dlc.numeroCartel === lc.numeroCartel && dlc.numeroLinea === lc.numeroLinea);
-          
-          if (!lineaCartel) return false;
-          return lineaCartel.descripcionLinea.toLowerCase().includes(sector.toLowerCase());
-        });
+        if (lineasContratadas.length > 0) {
+          return lineasContratadas.some(lc => {
+            // Buscar en descripción de la línea contratada
+            if (lc.descripcionLinea) {
+              const textoLinea = lc.descripcionLinea.toLowerCase();
+              if (textoLinea.includes(sector.toLowerCase())) return true;
+            }
+
+            // Buscar en detalle de línea de cartel
+            const lineaCartel = dataManager.obtenerDatos('DetalleLineaCartel')
+              .find(dlc => dlc.numeroCartel === lc.numeroCartel && dlc.numeroLinea === lc.numeroLinea);
+            
+            if (lineaCartel && lineaCartel.descripcionLinea) {
+              const textoLineaCartel = lineaCartel.descripcionLinea.toLowerCase();
+              return textoLineaCartel.includes(sector.toLowerCase());
+            }
+
+            return false;
+          });
+        }
+
+        return false;
       });
 
-      const montoTotal = _.sumBy(contratosDelSector, 'montoContrato') || 0;
+      // Calcular montos usando método preciso
+      const montoTotal = _.sumBy(contratosDelSector, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 0;
       const montoPromedio = contratosDelSector.length > 0 ? montoTotal / contratosDelSector.length : 0;
 
       // Calcular proveedores activos
@@ -85,8 +115,9 @@ const SectorMarketReport: React.FC<SectorMarketReportProps> = ({ filters }) => {
         });
       });
 
-      const montoAnterior = _.sumBy(contratosAnterior, 'montoContrato') || 1;
-      const tendencia = ((montoTotal - montoAnterior) / montoAnterior) * 100;
+      // Calcular monto anterior usando método preciso
+      const montoAnterior = _.sumBy(contratosAnterior, (c: any) => dataManager.obtenerMontoContratoPreciso(c)) || 1;
+      const tendencia = montoAnterior > 0 ? ((montoTotal - montoAnterior) / montoAnterior) * 100 : 0;
 
       return {
         sector,

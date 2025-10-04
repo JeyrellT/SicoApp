@@ -70,6 +70,12 @@ export interface DetalleLineaCartel {
   unidadMedida?: string;
   cantidadRequerida?: number;
   presupuestoLinea?: number;
+  numeroPartida?: number;
+  tipoMoneda?: string;
+  tipoCambioCRC?: number;
+  tipoCambioDolar?: number;
+  codigoIdentificacion?: string;
+  montoReservado?: number;
 }
 
 export interface FechaPorEtapa {
@@ -92,6 +98,8 @@ export interface Oferta {
   montoOferta?: number;
   estadoOferta?: string;
   cantidadLineasOfertadas?: number;
+  numeroOferta?: string;
+  tipoMoneda?: string;
 }
 
 export interface LineaOfertada {
@@ -102,6 +110,9 @@ export interface LineaOfertada {
   precioUnitarioOfertado: number;
   cantidadOfertada?: number;
   montoOfertadoLinea?: number;
+  numeroOferta?: string;
+  tipoMoneda?: string;
+  codigoProducto?: string;
 }
 
 export interface LineaRecibida {
@@ -112,6 +123,7 @@ export interface LineaRecibida {
   peorOferta?: number;
   promedioOfertas?: number;
   desierta?: boolean;
+  codigoProducto?: string;
 }
 
 export interface InvitacionProcedimiento {
@@ -133,6 +145,14 @@ export interface LineaAdjudicada {
   cantidadAdjudicada: number;
   montoLineaAdjudicada?: number;
   idOfertaGanadora?: string;
+  tipoMoneda?: string;
+  tipoCambioCRC?: number;
+  tipoCambioDolar?: number;
+  descuento?: number;
+  iva?: number;
+  otrosImpuestos?: number;
+  acarreos?: number;
+  numeroActo?: string;
 }
 
 export interface AdjudicacionFirme {
@@ -142,6 +162,10 @@ export interface AdjudicacionFirme {
   idProveedorAdjudicadoPrincipal?: string;
   numeroActa?: string;
   estadoAdjudicacion?: string;
+  numeroActo?: string;
+  permiteRecursos?: string;
+  desierto?: string;
+  fechaRevision?: Date;
 }
 
 // ================================
@@ -161,6 +185,21 @@ export interface Contrato {
   codigoProcedimiento?: string;
   codigoProcedimientoADM?: string;
   estadoContrato?: string;
+  secuencia?: number;
+  tipoContrato?: string;
+  tipoModificacion?: string;
+  fechaNotificacion?: Date;
+  tipoAutorizacion?: string;
+  tipoDisminucion?: string;
+  vigencia?: string;
+  tipoMoneda?: string;
+  fechaInicioSuspension?: Date;
+  fechaReinicioContrato?: Date;
+  plazoSuspension?: string;
+  fechaModificacion?: Date;
+  fechaInicioProrroga?: Date;
+  fechaFinProrroga?: Date;
+  numeroContratoWeb?: string;
 }
 
 export interface LineaContratada {
@@ -170,6 +209,22 @@ export interface LineaContratada {
   cantidadAdjudicada: number;
   precioAdjudicado: number;
   montoLineaContratada: number;
+  numeroLineaContrato?: string;
+  cantidad?: number;
+  precioUnitario?: number;
+  descripcionProducto?: string;
+  descuento?: number;
+  iva?: number;
+  otrosImpuestos?: number;
+  acarreos?: number;
+  tipoMoneda?: string;
+  tipoCambioCRC?: number;
+  tipoCambioDolar?: number;
+  montoTotal?: number;
+  cantidadAumentada?: number;
+  cantidadDisminuida?: number;
+  montoAumentado?: number;
+  montoDisminuido?: number;
 }
 
 // ================================
