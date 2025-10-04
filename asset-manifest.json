@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/SicoApp/static/css/main.c7878733.css",
+    "main.js": "/SicoApp/static/js/main.1127b636.js",
+    "static/js/453.1631c025.chunk.js": "/SicoApp/static/js/453.1631c025.chunk.js",
+    "index.html": "/SicoApp/index.html",
+    "main.c7878733.css.map": "/SicoApp/static/css/main.c7878733.css.map",
+    "main.1127b636.js.map": "/SicoApp/static/js/main.1127b636.js.map",
+    "453.1631c025.chunk.js.map": "/SicoApp/static/js/453.1631c025.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.c7878733.css",
+    "static/js/main.1127b636.js"
+  ]
+}
