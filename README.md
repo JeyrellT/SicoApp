@@ -68,3 +68,15 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+# SICOP App
+
+## Nueva pestaña: Categorías
+
+- Ubicación: abrir la app y entrar a "🏷️ Categorías" en el panel principal.
+- Permite: crear, editar y eliminar categorías manuales con:
+  - Palabras clave para detectar licitaciones relacionadas.
+  - Filtro por instituciones específicas.
+  - Agrupar categorías para futuros análisis.
+- Asistente: ejecuta el análisis por keywords para previsualizar licitaciones relevantes antes de guardar.
+- Persistencia: se guarda en `localStorage` del navegador (no requiere backend).

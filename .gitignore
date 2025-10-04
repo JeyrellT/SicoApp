@@ -21,3 +21,12 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Large CSV files (exceden límite de GitHub)
+/public/cleaned/*.csv
+/build/cleaned/*.csv
+cleaned/*.csv
+*.csv
+
+# Cache de gh-pages
+.gh-pages-cache

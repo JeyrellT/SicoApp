@@ -1,0 +1,22 @@
+.vt-scroll-outer { width: 100%; overflow-x: auto; overflow-y: visible; }
+.vt-wrapper { font-family: inherit; border: 1px solid #e5e9f2; border-radius: 12px; background: #ffffff; box-shadow: 0 6px 14px -4px rgba(15,23,42,0.10),0 2px 6px -2px rgba(15,23,42,0.06); position: relative; min-width: 100%; }
+.vt-header { background: linear-gradient(90deg,#f8fafc,#eef5fa); border-bottom: 1px solid #dce3ec; position: sticky; top: 0; z-index: 2; }
+.vt-row { display: flex; align-items: stretch; font-size: 12.5px; line-height: 1.35; }
+.vt-row--header { font-weight: 600; text-transform: uppercase; letter-spacing: .6px; font-size: 11px; color: #475569; }
+.vt-cell { padding: 6px 12px; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; display: flex; align-items: center; background: transparent; }
+.vt-cell--header { background: transparent; }
+.vt-row.even { background: #ffffff; }
+.vt-row.odd { background: #f6f9fc; }
+.vt-row:hover { background: #edf6ff; cursor: pointer; }
+.vt-row:focus-within { outline: 2px solid #3b82f6; outline-offset: -1px; }
+.vt-body { position: relative; overscroll-behavior: contain; }
+.vt-empty { padding: 32px; text-align: center; font-size: 14px; color: #64748b; border: 1px dashed #cbd5e1; border-radius: 8px; background: #fff; }
+.vt-cell.expandable { cursor: zoom-in; }
+.vt-cell.expanded { white-space: normal; overflow: auto; text-overflow: clip; background: #fffdfa; box-shadow: inset 0 0 0 1px #fde68a; border-radius: 4px; }
+.vt-resize-handle { position:absolute; top:0; right:0; width:6px; cursor:col-resize; user-select:none; height:100%; }
+.vt-resize-handle:after { content:''; position:absolute; inset:0; background:transparent; transition:background .15s; }
+.vt-resize-handle:hover:after { background:rgba(59,130,246,0.25); }
+.vt-resize-handle:active:after { background:rgba(59,130,246,0.45); }
+
+.tables-section { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; }
+@media (max-width: 1400px) { .tables-section { grid-template-columns: 1fr; } }

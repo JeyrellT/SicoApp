@@ -1,0 +1,37 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "start-react-app",
+			"type": "shell",
+			"command": "npm run start",
+			"args": [],
+			"isBackground": true,
+			"problemMatcher": [
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "TypeScript build (sicop-app)",
+			"type": "shell",
+			"command": "npm run -s build",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build sicop-app",
+			"type": "shell",
+			"command": "npm run -s build",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		}
+	]
+}
