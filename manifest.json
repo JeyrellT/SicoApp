@@ -1,27 +1,67 @@
 {
-  "short_name": "SICOP Analytics",
   "name": "SICOP Analytics - HQ Analytics™ | Saenz Fallas S.A.",
-  "description": "Sistema de Análisis de Contrataciones Públicas - High Technology Quality Analytics",
+  "short_name": "SICOP Analytics",
+  "description": "Sistema de Análisis de Contrataciones Públicas - High Technology Quality Analytics. Herramienta profesional para analizar licitaciones del SICOP de Costa Rica.",
   "author": "Saenz Fallas S.A.",
+  "version": "1.0.0",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#667eea",
+  "background_color": "#ffffff",
+  "lang": "es",
+  "dir": "ltr",
+  "categories": ["business", "finance", "analytics", "productivity"],
   "icons": [
     {
       "src": "favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "type": "image/x-icon",
+      "purpose": "any"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
     },
     {
       "src": "logo-hq-analytics.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "maskable"
     },
     {
       "src": "logo-hq-analytics.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#667eea",
-  "background_color": "#ffffff"
+  "shortcuts": [
+    {
+      "name": "Dashboard Principal",
+      "short_name": "Dashboard",
+      "description": "Ver el dashboard con métricas principales",
+      "url": "./index.html",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Gestión de Datos",
+      "short_name": "Datos",
+      "description": "Cargar y gestionar archivos CSV",
+      "url": "./index.html",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "iarc_rating_id": ""
 }
