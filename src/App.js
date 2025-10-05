@@ -1,8 +1,23 @@
+/**
+ * SICOP Analytics - Sistema de Análisis de Contrataciones Públicas
+ * 
+ * @copyright 2025 Saenz Fallas S.A. - Todos los derechos reservados
+ * @author Saenz Fallas S.A.
+ * @company Saenz Fallas S.A.
+ * @license Propiedad de Saenz Fallas S.A.
+ * 
+ * Este software es propiedad exclusiva de Saenz Fallas S.A.
+ * Queda prohibida su reproducción, distribución o modificación
+ * sin autorización expresa por escrito de Saenz Fallas S.A.
+ * 
+ * HQ Analytics™ - High Technology Quality Analytics
+ */
+
 import React, { useState } from 'react';
 import { SicopProvider } from './context/SicopContext';
 import { DemoPanel } from './components/DemoPanel';
 import { DataManagementHub } from './components/DataManagementHub';
-import { WelcomeScreen } from './components/WelcomeScreen';
+import { WelcomeScreenModern } from './components/WelcomeScreenModern';
 import { dataLoaderService } from './services/DataLoaderService';
 import { dataManager } from './data/DataManager';
 import './App.css';
@@ -75,7 +90,7 @@ function App() {
     switch (currentScreen) {
       case 'welcome':
         return (
-          <WelcomeScreen 
+          <WelcomeScreenModern 
             onManageData={handleGoToDataManagement}
             onLaunchApp={handleLaunchApp}
           />

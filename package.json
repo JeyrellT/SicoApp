@@ -2,6 +2,10 @@
   "name": "sicop-app",
   "version": "0.1.0",
   "private": true,
+  "description": "SICOP Analytics - Sistema de Análisis de Contrataciones Públicas (HQ Analytics)",
+  "author": "Saenz Fallas S.A.",
+  "copyright": "Copyright 2025 Saenz Fallas S.A. Todos los derechos reservados",
+  "license": "PRIVATE",
   "homepage": "https://jeyrelit.github.io/SicoApp",
   "dependencies": {
     "@tanstack/react-query": "^5.89.0",

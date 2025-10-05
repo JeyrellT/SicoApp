@@ -1,3 +1,26 @@
+# SICOP Analytics - HQ Analytics™
+
+![HQ Analytics Logo](public/logo-hq-analytics.png)
+
+## Sistema de Análisis de Contrataciones Públicas
+
+**SICOP Analytics** es un sistema avanzado de análisis y gestión de datos de contrataciones públicas, desarrollado con tecnología de alta calidad (High Technology Quality).
+
+---
+
+## 🏢 Información Corporativa
+
+**© 2025 Saenz Fallas S.A. - Todos los derechos reservados**
+
+- **Empresa Creadora:** Saenz Fallas S.A.
+- **Marca:** HQ Analytics™ (High Technology Quality Analytics)
+- **Licencia:** Propiedad Privada - Uso Exclusivo
+- **Derechos:** Software de propiedad exclusiva
+
+> ⚠️ **AVISO LEGAL**: Este software es propiedad exclusiva de Saenz Fallas S.A. Queda prohibida su reproducción, distribución o modificación sin autorización expresa por escrito de Saenz Fallas S.A.
+
+---
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

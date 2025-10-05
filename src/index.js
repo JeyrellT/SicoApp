@@ -1,3 +1,15 @@
+/**
+ * SICOP Analytics - Sistema de Análisis de Contrataciones Públicas
+ * Punto de Entrada Principal
+ * 
+ * @copyright 2025 Saenz Fallas S.A. - Todos los derechos reservados
+ * @author Saenz Fallas S.A.
+ * @company Saenz Fallas S.A.
+ * @license Propiedad de Saenz Fallas S.A.
+ * 
+ * HQ Analytics™ - High Technology Quality Analytics
+ */
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
