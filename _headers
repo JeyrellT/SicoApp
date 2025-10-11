@@ -1,0 +1,37 @@
+/*
+  Cache-Control para assets estáticos
+  GitHub Pages soporta este archivo parcialmente
+*/
+
+/* JavaScript y CSS - Cache largo con hash en nombre */
+/static/js/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/static/css/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/* Media - Cache largo */
+/static/media/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/* HTML - Sin cache, siempre validar */
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/* Service Worker - Sin cache */
+/service-worker.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/* Manifest - Cache corto */
+/manifest.json
+  Cache-Control: public, max-age=86400
+
+/* Imágenes optimizadas - Cache medio */
+/images/*.webp
+  Cache-Control: public, max-age=604800
+
+/images/*.jpg
+  Cache-Control: public, max-age=604800
+
+/images/*.png
+  Cache-Control: public, max-age=604800
