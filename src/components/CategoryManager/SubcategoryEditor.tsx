@@ -20,7 +20,6 @@ export const SubcategoryEditor: React.FC<SubcategoryEditorProps> = ({
       ? initialSubcategories
       : []
   );
-  const [editingId, setEditingId] = useState<string | null>(null);
 
   const generateId = () => `subcat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -32,7 +31,6 @@ export const SubcategoryEditor: React.FC<SubcategoryEditorProps> = ({
       activa: true
     };
     setSubcategories([...subcategories, newSubcat]);
-    setEditingId(newSubcat.id);
   };
 
   const handleUpdateSubcategory = (id: string, updates: Partial<SubcategoryRule>) => {

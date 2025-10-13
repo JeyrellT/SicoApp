@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, ChevronRight, ChevronLeft, Play } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft } from 'lucide-react';
 import './GuidedTour.css';
 
 export interface TourStep {

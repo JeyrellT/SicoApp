@@ -3,7 +3,7 @@
 // ================================
 // Análisis histórico de precios y proyecciones
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { dataManager } from '../../data/DataManager';
 import _ from 'lodash';
 
@@ -17,8 +17,6 @@ interface PriceTrendsReportProps {
 
 const PriceTrendsReport: React.FC<PriceTrendsReportProps> = ({ filters }) => {
   
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-
   // Análisis de precios históricos
   const analisisPrecios = useMemo(() => {
     const lineasAdjudicadas = dataManager.obtenerDatos('LineasAdjudicadas');

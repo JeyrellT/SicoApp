@@ -4,7 +4,6 @@
  */
 
 import { cacheService } from './CacheService';
-import { dataManager } from '../data/DataManager';
 import { MAPEO_ARCHIVOS } from '../data/relations';
 
 interface SyncValidationResult {

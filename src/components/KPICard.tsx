@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { formatCurrency, formatNumber, formatPercentage, generateMicroInsights, getConcentrationLevel, MicroInsight } from '../utils/formatting';
-import { useDashboardStore } from '../stores/dashboardStore';
+import { formatCurrency, formatNumber, formatPercentage, generateMicroInsights, getConcentrationLevel } from '../utils/formatting';
 
 interface KPICardProps {
   title: string;
@@ -42,7 +41,6 @@ const KPICard: React.FC<KPICardProps> = ({
   comparison
 }) => {
   const [showTooltip, setShowTooltip] = useState(false);
-  const { view } = useDashboardStore();
 
   const formattedValue = useMemo(() => {
     if (loading) return '—';

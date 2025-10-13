@@ -5,7 +5,6 @@ import { dataManager } from '../data/DataManager';
 export const DebugPanel: React.FC = () => {
   const showDebug = String(process.env.REACT_APP_SHOW_DEBUG ?? '').toLowerCase() === 'true';
   const { 
-    estadisticasGenerales, 
     instituciones, 
     keywordsComunes,
     error,

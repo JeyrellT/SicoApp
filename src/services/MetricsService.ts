@@ -4,7 +4,6 @@
 // Cálculos especializados para análisis profundo de licitaciones
 
 import moment from 'moment';
-import _ from 'lodash';
 import { 
   DetalleCartel, 
   Contrato, 
@@ -282,7 +281,6 @@ class MetricasService {
     
     for (let i = dias - 1; i >= 0; i--) {
       const fecha = moment().subtract(i, 'days').toDate();
-      const fechaStr = moment(fecha).format('YYYY-MM-DD');
       
       // Simular datos (en producción sería consulta real)
       const procedimientosDia = Math.floor(Math.random() * 15) + 5;

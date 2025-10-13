@@ -168,17 +168,6 @@ const AdvancedMultiSelect: React.FC<MultiSelectProps> = ({
     onChange(selectedValues.filter(v => v !== optionValue));
   };
 
-  const getDisplayText = () => {
-    if (selectedValues.length === 0) return placeholder;
-    if (selectedValues.length <= maxDisplayed) {
-      return selectedValues.map(value => {
-        const option = options.find(opt => opt.value === value);
-        return option?.label || value;
-      }).join(', ');
-    }
-    return `${selectedValues.length} elementos seleccionados`;
-  };
-
   const selectedOptions = selectedValues.map(value => 
     options.find(opt => opt.value === value)
   ).filter(Boolean) as FilterOption[];

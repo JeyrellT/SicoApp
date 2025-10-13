@@ -29,7 +29,6 @@ export const CacheManager: React.FC<{
   onDataChange?: () => void;
 }> = ({ onDataChange }) => {
   const [metadata, setMetadata] = useState<CacheMetadata | null>(null);
-  const [groupedFiles, setGroupedFiles] = useState<GroupedFiles>({});
   const [expandedYears, setExpandedYears] = useState<Set<number>>(new Set());
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);

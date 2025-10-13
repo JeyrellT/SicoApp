@@ -4,7 +4,6 @@
 // Análisis detallado de sectores específicos
 
 import React, { useMemo } from 'react';
-import { reportService } from '../../services/ReportService';
 import { dataManager } from '../../data/DataManager';
 import _ from 'lodash';
 

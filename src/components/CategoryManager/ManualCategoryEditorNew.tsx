@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ManualCategoryRule, CategoryGroup, SubcategoryRule } from '../../types/categories';
 import { CategoryService } from '../../services/CategoryService';
-import _ from 'lodash';
 import { SubcategoryEditor } from './SubcategoryEditor';
 
 const modernCard: React.CSSProperties = {
