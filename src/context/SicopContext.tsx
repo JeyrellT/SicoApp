@@ -4,7 +4,7 @@
 // Provee acceso centralizado a los datos y servicios
 // Usa useDataManager hook para gestión de estado simplificada
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useDataManager, type DataManagerHook } from '../hooks/useDataManager';
 import { dataManager } from '../data/DataManager';
 import { filterService } from '../services/FilterService';
@@ -97,6 +97,39 @@ export const SicopProvider: React.FC<SicopProviderProps> = ({ children }) => {
   const [alertasActivas, setAlertasActivas] = useState<AlertaInteligente[]>([]);
 
   // ================================
+  // MÉTODOS CON CALLBACK
+  // ================================
+
+  const actualizarMetricas = useCallback(async (): Promise<void> => {
+    if (!dataManagerHook.isLoaded) return;
+
+    try {
+      console.log('🔄 Actualizando métricas avanzadas...');
+      
+      const carteles = dataManager.obtenerDatos('DetalleCarteles');
+      const contratos = dataManager.obtenerDatos('Contratos');
+      const sanciones = dataManager.obtenerDatos('SancionProveedores') || [];
+      const participacion = dataManager.obtenerDatos('Ofertas') || [];
+      
+      const metricas = metricsService.calcularMetricasCompletas(
+        carteles,
+        contratos,
+        dataManagerHook.proveedores,
+        dataManagerHook.instituciones,
+        sanciones,
+        participacion
+      );
+      
+      setMetricasAvanzadas(metricas);
+      setAlertasActivas(metricas.alertas);
+      
+      console.log('✅ Métricas actualizadas');
+    } catch (err) {
+      console.error('⚠️ Error actualizando métricas:', err);
+    }
+  }, [dataManagerHook.isLoaded, dataManagerHook.proveedores, dataManagerHook.instituciones]);
+
+  // ================================
   // EFECTOS
   // ================================
 
@@ -106,7 +139,7 @@ export const SicopProvider: React.FC<SicopProviderProps> = ({ children }) => {
       console.log('📊 Datos cargados, actualizando métricas...');
       actualizarMetricas();
     }
-  }, [dataManagerHook.isLoaded]); // Solo depende de isLoaded
+  }, [dataManagerHook.isLoaded, metricasAvanzadas, actualizarMetricas]);
 
   useEffect(() => {
     // Listener para actualizaciones manuales de categorías
@@ -125,7 +158,7 @@ export const SicopProvider: React.FC<SicopProviderProps> = ({ children }) => {
     return () => {
       window.removeEventListener('manualCategoriesUpdated', handleManualCategoriesUpdate);
     };
-  }, [dataManagerHook.isLoaded]);
+  }, [dataManagerHook.isLoaded, actualizarMetricas]);
 
   // ================================
   // MÉTODOS PRINCIPALES
@@ -265,35 +298,6 @@ export const SicopProvider: React.FC<SicopProviderProps> = ({ children }) => {
     } catch (err) {
       console.error('Error sugiriendo carteles:', err);
       return [] as S[];
-    }
-  };
-
-  const actualizarMetricas = async (): Promise<void> => {
-    if (!dataManagerHook.isLoaded) return;
-
-    try {
-      console.log('🔄 Actualizando métricas avanzadas...');
-      
-      const carteles = dataManager.obtenerDatos('DetalleCarteles');
-      const contratos = dataManager.obtenerDatos('Contratos');
-      const sanciones = dataManager.obtenerDatos('SancionProveedores') || [];
-      const participacion = dataManager.obtenerDatos('Ofertas') || [];
-      
-      const metricas = metricsService.calcularMetricasCompletas(
-        carteles,
-        contratos,
-        dataManagerHook.proveedores,
-        dataManagerHook.instituciones,
-        sanciones,
-        participacion
-      );
-      
-      setMetricasAvanzadas(metricas);
-      setAlertasActivas(metricas.alertas);
-      
-      console.log('✅ Métricas actualizadas');
-    } catch (err) {
-      console.error('⚠️ Error actualizando métricas:', err);
     }
   };
 

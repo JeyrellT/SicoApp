@@ -8,7 +8,7 @@
  * HQ Analytics™ - High Technology Quality Analytics
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, ChevronRight, ChevronLeft } from 'lucide-react';
 import './GuidedTour.css';
 
@@ -66,9 +66,10 @@ export const GuidedTour: React.FC<GuidedTourProps> = ({
     if (isActive && step?.onEnter) {
       step.onEnter();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep, isActive]);
 
-  const updateTargetPosition = () => {
+  const updateTargetPosition = useCallback(() => {
     const step = steps[currentStep];
     const selector = step?.targetSelector || step?.target;
     
@@ -80,7 +81,7 @@ export const GuidedTour: React.FC<GuidedTourProps> = ({
     } else {
       setTargetRect(null);
     }
-  };
+  }, [steps, currentStep]);
 
   const handleNext = async () => {
     const step = steps[currentStep];

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   AlertCircle, 
   CheckCircle, 
@@ -23,11 +23,7 @@ export const ValidationReportPanel: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<string>('');
 
-  useEffect(() => {
-    loadAnalysis();
-  }, [selectedMonth, selectedYear]);
-
-  const loadAnalysis = async () => {
+  const loadAnalysis = useCallback(async () => {
     setLoading(true);
     try {
       const report = await fileValidationService.analyzeAllFiles(selectedMonth, selectedYear);
@@ -37,7 +33,11 @@ export const ValidationReportPanel: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    loadAnalysis();
+  }, [loadAnalysis]);
 
   const toggleFileExpansion = (fileId: string) => {
     const newExpanded = new Set(expandedFiles);

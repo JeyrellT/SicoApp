@@ -299,7 +299,7 @@ if (typeof window !== 'undefined') {
 
 console.log('[PWA] 📱 Módulo de Service Worker cargado');
 
-export default {
+const serviceWorkerRegistration = {
   register,
   unregister,
   clearCaches,
@@ -309,3 +309,5 @@ export default {
   isServiceWorkerActive,
   getServiceWorkerInfo
 };
+
+export default serviceWorkerRegistration;
