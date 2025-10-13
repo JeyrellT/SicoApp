@@ -1,42 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { CategoryService } from '../../services/CategoryService';
 import { dataManager } from '../../data/DataManager';
 import _ from 'lodash';
-
-const modernCard: React.CSSProperties = {
-  background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-  borderRadius: 12,
-  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-  border: '1px solid rgba(226, 232, 240, 0.8)',
-  padding: 24,
-  marginBottom: 20
-};
-
-const badge: React.CSSProperties = {
-  display: 'inline-block',
-  padding: '4px 12px',
-  borderRadius: 20,
-  fontSize: 12,
-  fontWeight: 600,
-  margin: '2px 4px'
-};
-
-const btn = (variant: 'primary' | 'secondary' | 'success' = 'secondary'): React.CSSProperties => ({
-  background: variant === 'primary' ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' 
-             : variant === 'success' ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
-             : '#e5e7eb',
-  color: variant !== 'secondary' ? '#fff' : '#111827',
-  border: 'none',
-  borderRadius: 6,
-  padding: '8px 16px',
-  cursor: 'pointer',
-  marginRight: 8,
-  fontWeight: 600,
-  fontSize: 14
-});
-
-const formatMoney = (amount: number) => 
-  new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(amount);
+import { modernCard, badge, btn, formatMoney } from './categoryStyles';
 
 interface KeywordTestingPanelProps {
   onSaveCategory?: (keywords: string[], name: string) => void;
@@ -50,6 +15,7 @@ export default function KeywordTestingPanel({ onSaveCategory }: KeywordTestingPa
   const [analysisMode, setAnalysisMode] = useState<'exact' | 'fuzzy' | 'semantic'>('exact');
   const [minConfidence, setMinConfidence] = useState(0.5);
   const [categoryName, setCategoryName] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [selectedInstitutions, setSelectedInstitutions] = useState<string[]>([]);
   const [expandedCarteles, setExpandedCarteles] = useState<Set<string>>(new Set());
 
@@ -713,7 +679,7 @@ export default function KeywordTestingPanel({ onSaveCategory }: KeywordTestingPa
               onClick={runAnalysis}
               disabled={isAnalyzing || testKeywords.length === 0}
               style={{
-                ...btn('success'),
+                ...btn('primary'),
                 width: '100%',
                 padding: '12px',
                 fontSize: 16,

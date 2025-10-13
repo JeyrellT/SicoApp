@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSicop } from '../../context/SicopContext';
 import { dataManager } from '../../data/DataManager';
 import DetailedCategoryModal from './DetailedCategoryModal';
+import { formatMoney, formatPercent, modernCard } from './categoryStyles';
 
 // Tipos locales basados en la estructura de DataManager
 interface CategoryAnalysis {
@@ -15,6 +16,17 @@ interface CategoryAnalysis {
     presupuestoLinea: number;
     codigoInstitucion: string;
     palabrasCoincidentes: string[];
+    // Nuevos campos para diferenciar nivel de coincidencia
+    tipoCoincidencia: 'cartel' | 'lineas'; // Si coincidió en datos del cartel o en líneas específicas
+    lineasCoincidentes?: Array<{
+      descripcion: string;
+      presupuesto: number;
+      palabrasEncontradas: string[];
+    }>; // Solo para tipoCoincidencia === 'lineas'
+    todasLasLineas?: Array<{
+      descripcion: string;
+      presupuesto: number;
+    }>; // Solo para tipoCoincidencia === 'cartel', para mostrar expandible
   }>;
   instituciones: Array<{
     codigo: string;
@@ -36,59 +48,9 @@ interface SystemCategoryOverview {
   };
 }
 
-const formatMoney = (amount: number) => 
-  new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(amount);
-
-const formatPercent = (value: number) => `${value.toFixed(1)}%`;
-
-// Función para resaltar palabras clave en verde
-const highlightKeywords = (text: string, keywords: string[]) => {
-  if (!keywords || keywords.length === 0) return [{ text, highlighted: false }];
-  
-  const parts: Array<{ text: string; highlighted: boolean }> = [];
-  let lastIndex = 0;
-  
-  // Crear un patrón regex con todas las palabras clave
-  const pattern = new RegExp(
-    `(${keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
-    'gi'
-  );
-  
-  const matches = [...text.matchAll(pattern)];
-  
-  matches.forEach(match => {
-    if (match.index !== undefined) {
-      // Agregar texto antes del match
-      if (match.index > lastIndex) {
-        parts.push({ text: text.slice(lastIndex, match.index), highlighted: false });
-      }
-      // Agregar el match resaltado
-      parts.push({ text: match[0], highlighted: true });
-      lastIndex = match.index + match[0].length;
-    }
-  });
-  
-  // Agregar texto restante
-  if (lastIndex < text.length) {
-    parts.push({ text: text.slice(lastIndex), highlighted: false });
-  }
-  
-  return parts.length > 0 ? parts : [{ text, highlighted: false }];
-};
-
-const modernCard: React.CSSProperties = {
-  background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-  borderRadius: 12,
-  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-  border: '1px solid rgba(226, 232, 240, 0.8)',
-  padding: 24,
-  marginBottom: 20,
-  transition: 'all 0.3s ease'
-};
-
 const statsCard: React.CSSProperties = {
   ...modernCard,
-  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  background: 'linear-gradient(135deg, #1e3a8a 0%, #0c4a6e 100%)',
   color: 'white',
   textAlign: 'center' as const
 };
@@ -130,15 +92,47 @@ export default function CategoryAnalysisView() {
   const [overview, setOverview] = useState<SystemCategoryOverview | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<CategoryAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDetailedModal, setShowDetailedModal] = useState(false);
   const [modalCategory, setModalCategory] = useState<CategoryAnalysis | null>(null);
+
+  // Función auxiliar para procesar en lotes sin bloquear UI
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const processBatch = async <T, R>(
+    items: T[],
+    batchSize: number,
+    processor: (item: T) => R,
+    onProgress?: (progress: number) => void
+  ): Promise<R[]> => {
+    const results: R[] = [];
+    const totalBatches = Math.ceil(items.length / batchSize);
+    
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      
+      // Procesar lote
+      const batchResults = batch.map(processor);
+      results.push(...batchResults);
+      
+      // Actualizar progreso
+      const currentBatch = Math.floor(i / batchSize) + 1;
+      const progress = Math.round((currentBatch / totalBatches) * 100);
+      onProgress?.(progress);
+      
+      // Dar tiempo al navegador para renderizar (evitar bloqueo)
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    
+    return results;
+  };
 
   // Función para convertir datos de DataManager a formato CategoryAnalysis
   const analyzeCategories = async () => {
     if (!isLoaded) return;
     
     setLoading(true);
+    setLoadingProgress(0);
     try {
       console.log('[CategoryAnalysisView] 🔍 Obteniendo datos de DataManager...');
       
@@ -162,7 +156,7 @@ export default function CategoryAnalysisView() {
       console.log('[CategoryAnalysisView] sector_analysis:', sectorAnalysis);
 
       // Obtener ejemplos REALES de clasificación usando la misma lógica que DataManager
-      const obtenerEjemplosReales = (nombreSector: string): CategoryAnalysis['ejemplos'] => {
+      const obtenerEjemplosReales = async (nombreSector: string): Promise<CategoryAnalysis['ejemplos']> => {
         try {
           console.log(`[CategoryAnalysisView] 🔍 Buscando ejemplos para: ${nombreSector}`);
           
@@ -204,6 +198,7 @@ export default function CategoryAnalysisView() {
           };
 
           // Función para clasificar un texto y obtener coincidencias
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const clasificarTexto = (texto: string): { esMatch: boolean; coincidencias: string[] } => {
             if (!texto) return { esMatch: false, coincidencias: [] };
             
@@ -234,19 +229,37 @@ export default function CategoryAnalysisView() {
             score: number;
             coincidencias: string[];
             textos: Array<{ fuente: string; texto: string; coincidencias: string[] }>;
+            tipoCoincidencia: 'cartel' | 'lineas'; // NUEVO: detectar dónde coincidió
+            lineasConCoincidencias: Array<{ // NUEVO: líneas específicas que coincidieron
+              descripcion: string;
+              presupuesto: number;
+              palabrasEncontradas: string[];
+            }>;
           } => {
             const scoresPorSector: Record<string, number> = {};
             const coincidenciasPorSector: Record<string, Set<string>> = {};
             const textosPorSector: Record<string, Array<{ fuente: string; texto: string; coincidencias: string[] }>> = {};
 
+            // NUEVO: Para rastrear coincidencias por tipo de fuente
+            const scoreEnCartel: Record<string, number> = {};
+            const scoreEnLineas: Record<string, number> = {};
+            const lineasConCoincidenciasPorSector: Record<string, Array<{
+              descripcion: string;
+              presupuesto: number;
+              palabrasEncontradas: string[];
+            }>> = {};
+
             // Inicializar para todos los sectores
             Object.keys(sectorRules).forEach(s => {
               scoresPorSector[s] = 0;
+              scoreEnCartel[s] = 0;
+              scoreEnLineas[s] = 0;
               coincidenciasPorSector[s] = new Set();
               textosPorSector[s] = [];
+              lineasConCoincidenciasPorSector[s] = [];
             });
 
-            const agregarVoto = (texto: string, fuente: string) => {
+            const agregarVoto = (texto: string, fuente: string, esLineaEspecifica: boolean = false, lineaData?: any) => {
               if (!texto) return;
               
               // Clasificar contra TODOS los sectores
@@ -271,6 +284,23 @@ export default function CategoryAnalysisView() {
 
                 if (score > 0) {
                   scoresPorSector[sector] += score;
+                  
+                  // NUEVO: Rastrear si el score vino del cartel o de las líneas
+                  if (esLineaEspecifica) {
+                    scoreEnLineas[sector] += score;
+                    
+                    // Guardar la línea específica que coincidió
+                    if (lineaData) {
+                      lineasConCoincidenciasPorSector[sector].push({
+                        descripcion: lineaData.descripcionLinea || '',
+                        presupuesto: lineaData.presupuestoLinea || 0,
+                        palabrasEncontradas: coincidencias
+                      });
+                    }
+                  } else {
+                    scoreEnCartel[sector] += score;
+                  }
+                  
                   textosPorSector[sector].push({
                     fuente,
                     texto: texto.substring(0, 200), // Limitar longitud
@@ -283,15 +313,15 @@ export default function CategoryAnalysisView() {
             // Votar por líneas del cartel
             const lineasDelCartel = porCartel[numeroCartel] || [];
             lineasDelCartel.forEach((linea: any, idx: number) => {
-              agregarVoto(linea.descripcionLinea, `Línea ${idx + 1}`);
+              agregarVoto(linea.descripcionLinea, `Línea ${idx + 1}`, true, linea); // NUEVO: marcado como línea específica
             });
 
             // Votar por datos del cartel
             const cartel = cartelPorId.get(numeroCartel);
             if (cartel) {
-              agregarVoto(cartel.nombreCartel, 'Nombre del cartel');
-              agregarVoto(cartel.descripcionCartel, 'Descripción del cartel');
-              agregarVoto(cartel.clasificacionObjeto, 'Clasificación del objeto');
+              agregarVoto(cartel.nombreCartel, 'Nombre del cartel', false); // NUEVO: marcado como cartel
+              agregarVoto(cartel.descripcionCartel, 'Descripción del cartel', false);
+              agregarVoto(cartel.clasificacionObjeto, 'Clasificación del objeto', false);
             }
 
             // Encontrar sector ganador
@@ -300,15 +330,31 @@ export default function CategoryAnalysisView() {
               .sort((a, b) => b[1] - a[1]);
 
             if (sectoresOrdenados.length === 0) {
-              return { sector: 'Otros', score: 0, coincidencias: [], textos: [] };
+              return { 
+                sector: 'Otros', 
+                score: 0, 
+                coincidencias: [], 
+                textos: [],
+                tipoCoincidencia: 'cartel',
+                lineasConCoincidencias: []
+              };
             }
 
             const [sectorGanador, scoreGanador] = sectoresOrdenados[0];
+            
+            // NUEVO: Determinar tipo de coincidencia
+            // Si tiene más score en líneas, es coincidencia de líneas
+            // Si tiene más score en cartel, es coincidencia de cartel
+            const tipoCoincidencia: 'cartel' | 'lineas' = 
+              scoreEnLineas[sectorGanador] > scoreEnCartel[sectorGanador] ? 'lineas' : 'cartel';
+            
             return {
               sector: sectorGanador,
               score: scoreGanador,
               coincidencias: Array.from(coincidenciasPorSector[sectorGanador]),
-              textos: textosPorSector[sectorGanador]
+              textos: textosPorSector[sectorGanador],
+              tipoCoincidencia,
+              lineasConCoincidencias: lineasConCoincidenciasPorSector[sectorGanador]
             };
           };
 
@@ -319,14 +365,29 @@ export default function CategoryAnalysisView() {
             presupuestoLinea: number;
             codigoInstitucion: string;
             palabrasCoincidentes: string[];
+            tipoCoincidencia: 'cartel' | 'lineas';
+            lineasCoincidentes?: Array<{
+              descripcion: string;
+              presupuesto: number;
+              palabrasEncontradas: string[];
+            }>;
+            todasLasLineas?: Array<{
+              descripcion: string;
+              presupuesto: number;
+            }>;
             score: number;
             textos: Array<{ fuente: string; texto: string; coincidencias: string[] }>;
           }> = [];
 
-          // Procesar todos los carteles
+          // Procesar todos los carteles EN LOTES para evitar bloqueo
           const cartelesSet = new Set(Object.keys(porCartel).concat(carteles.map(c => c.numeroCartel).filter(Boolean)));
+          const cartelesArray = Array.from(cartelesSet);
           
-          cartelesSet.forEach(numeroCartel => {
+          console.log(`[CategoryAnalysisView] 📦 Procesando ${cartelesArray.length} carteles en lotes para ${nombreSector}...`);
+          
+          // Procesar carteles en lotes de 100
+          const BATCH_SIZE = 100;
+          const procesarCartel = (numeroCartel: string) => {
             const resultado = votarPorCartel(numeroCartel);
             
             // Si este cartel fue clasificado en el sector que buscamos
@@ -334,29 +395,60 @@ export default function CategoryAnalysisView() {
               const cartel = cartelPorId.get(numeroCartel);
               const lineasDelCartel = porCartel[numeroCartel] || [];
               
-              // Obtener el mejor texto descriptivo (priorizar descripción de línea > nombre cartel > descripción cartel)
+              // Obtener el mejor texto descriptivo
               let descripcionPrincipal = '';
-              if (lineasDelCartel.length > 0 && lineasDelCartel[0].descripcionLinea) {
-                descripcionPrincipal = lineasDelCartel[0].descripcionLinea;
+              if (resultado.tipoCoincidencia === 'lineas' && resultado.lineasConCoincidencias.length > 0) {
+                // Si coincidió en líneas, usar la primera línea coincidente
+                descripcionPrincipal = resultado.lineasConCoincidencias[0].descripcion;
               } else if (cartel?.nombreCartel) {
                 descripcionPrincipal = cartel.nombreCartel;
               } else if (cartel?.descripcionCartel) {
                 descripcionPrincipal = cartel.descripcionCartel;
+              } else if (lineasDelCartel.length > 0 && lineasDelCartel[0].descripcionLinea) {
+                descripcionPrincipal = lineasDelCartel[0].descripcionLinea;
               } else {
                 descripcionPrincipal = 'Sin descripción disponible';
               }
 
-              ejemplosEncontrados.push({
+              // NUEVO: Preparar datos según tipo de coincidencia
+              const ejemploData: any = {
                 numeroCartel: numeroCartel,
                 descripcionLinea: descripcionPrincipal,
                 presupuestoLinea: lineasDelCartel.reduce((sum: number, l: any) => sum + (l.presupuestoLinea || 0), 0),
                 codigoInstitucion: cartel?.codigoInstitucion || '',
                 palabrasCoincidentes: resultado.coincidencias,
+                tipoCoincidencia: resultado.tipoCoincidencia,
                 score: resultado.score,
                 textos: resultado.textos
-              });
+              };
+
+              // Si coincidió en líneas específicas, incluir solo esas líneas
+              if (resultado.tipoCoincidencia === 'lineas') {
+                ejemploData.lineasCoincidentes = resultado.lineasConCoincidencias;
+              } else {
+                // Si coincidió en el cartel, incluir todas las líneas para expandible
+                ejemploData.todasLasLineas = lineasDelCartel.map((l: any) => ({
+                  descripcion: l.descripcionLinea || '',
+                  presupuesto: l.presupuestoLinea || 0
+                }));
+              }
+
+              return ejemploData;
             }
-          });
+            return null;
+          };
+          
+          // Procesar en lotes
+          for (let i = 0; i < cartelesArray.length; i += BATCH_SIZE) {
+            const batch = cartelesArray.slice(i, i + BATCH_SIZE);
+            const batchResults = batch.map(procesarCartel).filter(Boolean);
+            ejemplosEncontrados.push(...batchResults);
+            
+            // Dar tiempo al navegador para renderizar (evitar "Page Unresponsive")
+            if (i + BATCH_SIZE < cartelesArray.length) {
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
+          }
 
           console.log(`[CategoryAnalysisView] ✅ Encontrados ${ejemplosEncontrados.length} ejemplos para ${nombreSector}`);
 
@@ -373,31 +465,47 @@ export default function CategoryAnalysisView() {
       };
 
       // Calcular totales
-      const totalCarteles = sectorAnalysis.reduce((sum, s) => sum + s.count, 0);
-      const totalMonto = sectorAnalysis.reduce((sum, s) => sum + s.total_monto, 0);
+      const totalCarteles = sectorAnalysis.reduce((sum: number, s: any) => sum + s.count, 0);
+      const totalMonto = sectorAnalysis.reduce((sum: number, s: any) => sum + s.total_monto, 0);
       
       // Encontrar sin categorizar
-      const sinCateg = sectorAnalysis.find(s => s.sector === 'Sin categorizar' || s.sector === 'Otros');
+      const sinCateg = sectorAnalysis.find((s: any) => s.sector === 'Sin categorizar' || s.sector === 'Otros');
       const lineasSinCat = sinCateg?.count || 0;
       const cobertura = totalCarteles > 0 ? ((totalCarteles - lineasSinCat) / totalCarteles) * 100 : 0;
 
       // Convertir sector_analysis a CategoryAnalysis CON EJEMPLOS REALES
-      const categorias: CategoryAnalysis[] = sectorAnalysis
-        .filter(s => s.sector !== 'Sin categorizar' && s.sector !== 'Otros')
-        .map(sector => {
-          const ejemplos = obtenerEjemplosReales(sector.sector);
-          console.log(`[CategoryAnalysisView] Sector "${sector.sector}": ${ejemplos.length} ejemplos`);
-          
-          return {
-            categoria: sector.sector,
-            totalLineas: sector.count,
-            porcentaje: sector.percentage,
-            montoTotal: sector.total_monto,
-            ejemplos,
-            instituciones: [], // TODO: Agregar distribución por institución si se requiere
-            tendenciaMensual: [] // TODO: Agregar si se requiere
-          };
+      // PROCESAMIENTO POR LOTES - secuencial con await para evitar bloqueo
+      const sectoresAFiltrar = sectorAnalysis.filter((s: any) => s.sector !== 'Sin categorizar' && s.sector !== 'Otros');
+      const categorias: CategoryAnalysis[] = [];
+      
+      console.log(`[CategoryAnalysisView] 📦 Procesando ${sectoresAFiltrar.length} categorías...`);
+      
+      for (let i = 0; i < sectoresAFiltrar.length; i++) {
+        const sector = sectoresAFiltrar[i];
+        
+        // Actualizar progreso
+        const progress = Math.round(((i + 1) / sectoresAFiltrar.length) * 100);
+        setLoadingProgress(progress);
+        
+        console.log(`[CategoryAnalysisView] [${i + 1}/${sectoresAFiltrar.length}] Procesando: ${sector.sector}`);
+        
+        // Obtener ejemplos (ya usa procesamiento por lotes internamente)
+        const ejemplos = await obtenerEjemplosReales(sector.sector);
+        console.log(`[CategoryAnalysisView] Sector "${sector.sector}": ${ejemplos.length} ejemplos`);
+        
+        categorias.push({
+          categoria: sector.sector,
+          totalLineas: sector.count,
+          porcentaje: sector.percentage,
+          montoTotal: sector.total_monto,
+          ejemplos,
+          instituciones: [], // TODO: Agregar distribución por institución si se requiere
+          tendenciaMensual: [] // TODO: Agregar si se requiere
         });
+        
+        // Dar tiempo al navegador entre categorías
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
 
       console.log('[CategoryAnalysisView] ✅ Categorías procesadas:', categorias.length);
 
@@ -415,6 +523,7 @@ export default function CategoryAnalysisView() {
       console.error('[CategoryAnalysisView] ❌ Error analizando categorías:', error);
     } finally {
       setLoading(false);
+      setLoadingProgress(0);
     }
   };
 
@@ -422,6 +531,7 @@ export default function CategoryAnalysisView() {
     if (isLoaded) {
       analyzeCategories();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded]);
 
   // Escuchar cambios en configuración de categorías
@@ -442,6 +552,7 @@ export default function CategoryAnalysisView() {
       window.removeEventListener('manualCategoriesUpdated', handleRefresh);
       window.removeEventListener('subcategoryConfigurationUpdated', handleRefresh);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded]);
 
   const openDetailedView = (category: CategoryAnalysis) => {
@@ -481,6 +592,11 @@ export default function CategoryAnalysisView() {
           <div style={{ fontSize: 18, color: '#6b7280', marginBottom: 16 }}>
             Analizando categorías del sistema...
           </div>
+          {loadingProgress > 0 && (
+            <div style={{ fontSize: 14, color: '#9ca3af', marginBottom: 12 }}>
+              Procesando: {loadingProgress}%
+            </div>
+          )}
           <div style={{ 
             width: 200, 
             height: 4, 
@@ -490,11 +606,20 @@ export default function CategoryAnalysisView() {
             overflow: 'hidden'
           }}>
             <div style={{
-              width: '60%',
+              width: loadingProgress > 0 ? `${loadingProgress}%` : '60%',
               height: '100%',
               background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
-              animation: 'pulse 2s infinite'
+              transition: 'width 0.3s ease',
+              animation: loadingProgress === 0 ? 'pulse 2s infinite' : 'none'
             }} />
+          </div>
+          <div style={{ 
+            marginTop: 16, 
+            fontSize: 12, 
+            color: '#9ca3af',
+            fontStyle: 'italic'
+          }}>
+            Procesando en lotes para evitar bloqueos...
           </div>
         </div>
       </div>
@@ -662,20 +787,42 @@ export default function CategoryAnalysisView() {
                 </div>
                 <div style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.5 }}>
                   {categoria.ejemplos.slice(0, 3).map((ejemplo, i) => (
-                    <div key={i} style={{ marginBottom: 6 }}>
-                      <span style={{ fontWeight: 600 }}>{ejemplo.numeroCartel}:</span> {ejemplo.descripcionLinea.slice(0, 100)}
-                      {ejemplo.descripcionLinea.length > 100 && '...'}
-                      <div style={{ marginTop: 4 }}>
-                        {ejemplo.palabrasCoincidentes.map(palabra => (
+                    <div key={i} style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontWeight: 600 }}>{ejemplo.numeroCartel}:</span>
+                        {/* NUEVO: Badge indicando tipo de coincidencia */}
+                        <span style={{
+                          ...badge,
+                          background: ejemplo.tipoCoincidencia === 'cartel' 
+                            ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                            : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          color: 'white',
+                          fontSize: 9,
+                          padding: '3px 8px'
+                        }}>
+                          {ejemplo.tipoCoincidencia === 'cartel' ? '📋 Cartel' : '📄 Líneas'}
+                        </span>
+                      </div>
+                      <div style={{ paddingLeft: 8, borderLeft: '2px solid #e5e7eb' }}>
+                        {ejemplo.descripcionLinea.slice(0, 100)}
+                        {ejemplo.descripcionLinea.length > 100 && '...'}
+                      </div>
+                      <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {ejemplo.palabrasCoincidentes.slice(0, 3).map(palabra => (
                           <span key={palabra} style={{
                             ...badge,
-                            background: '#fef3c7',
-                            color: '#92400e',
+                            background: ejemplo.tipoCoincidencia === 'cartel' ? '#fef3c7' : '#dcfce7',
+                            color: ejemplo.tipoCoincidencia === 'cartel' ? '#92400e' : '#166534',
                             fontSize: 10
                           }}>
                             {palabra}
                           </span>
                         ))}
+                        {ejemplo.palabrasCoincidentes.length > 3 && (
+                          <span style={{ fontSize: 10, color: '#9ca3af' }}>
+                            +{ejemplo.palabrasCoincidentes.length - 3} más
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -809,28 +956,52 @@ export default function CategoryAnalysisView() {
                     <div key={i} style={{
                       padding: 12,
                       marginBottom: 8,
-                      background: '#f8fafc',
+                      background: ejemplo.tipoCoincidencia === 'cartel' ? '#fef3c7' : '#dcfce7',
                       borderRadius: 8,
-                      borderLeft: '4px solid #3b82f6'
+                      borderLeft: `4px solid ${ejemplo.tipoCoincidencia === 'cartel' ? '#f59e0b' : '#10b981'}`
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{ fontWeight: 600, color: '#1f2937' }}>
-                          {ejemplo.numeroCartel}
-                        </span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <span style={{ fontWeight: 600, color: '#1f2937' }}>
+                            {ejemplo.numeroCartel}
+                          </span>
+                          {/* Badge de tipo */}
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            background: ejemplo.tipoCoincidencia === 'cartel' ? '#f59e0b' : '#10b981',
+                            color: 'white',
+                            padding: '2px 8px',
+                            borderRadius: 4
+                          }}>
+                            {ejemplo.tipoCoincidencia === 'cartel' ? '📋' : '📄'}
+                          </span>
+                        </div>
                         <span style={{ fontSize: 12, color: '#6b7280' }}>
                           {ejemplo.codigoInstitucion}
                         </span>
                       </div>
-                      <div style={{ fontSize: 14, color: '#374151', marginBottom: 8, lineHeight: 1.4 }}>
+                      <div style={{ fontSize: 13, color: '#374151', marginBottom: 8, lineHeight: 1.4 }}>
                         {ejemplo.descripcionLinea}
                       </div>
+                      {/* Indicador de coincidencias en líneas específicas */}
+                      {ejemplo.tipoCoincidencia === 'lineas' && ejemplo.lineasCoincidentes && (
+                        <div style={{
+                          fontSize: 11,
+                          color: '#059669',
+                          marginBottom: 8,
+                          fontWeight: 600
+                        }}>
+                          ✓ {ejemplo.lineasCoincidentes.length} línea(s) específica(s) coincidieron
+                        </div>
+                      )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          {ejemplo.palabrasCoincidentes.map(palabra => (
+                          {ejemplo.palabrasCoincidentes.slice(0, 4).map(palabra => (
                             <span key={palabra} style={{
                               ...badge,
-                              background: '#e0f2fe',
-                              color: '#0369a1',
+                              background: ejemplo.tipoCoincidencia === 'cartel' ? '#f59e0b' : '#10b981',
+                              color: 'white',
                               fontSize: 10
                             }}>
                               {palabra}

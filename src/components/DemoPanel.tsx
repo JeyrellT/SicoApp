@@ -1,6 +1,6 @@
 /**
  * SICOP Analytics - Sistema de Análisis de Contrataciones Públicas
- * Panel Principal de Demostración
+ * Panel Principal de Análisis
  * 
  * @copyright 2025 Saenz Fallas S.A. - Todos los derechos reservados
  * @author Saenz Fallas S.A.
@@ -11,20 +11,24 @@
  */
 
 // ================================
-// PANEL DE DEMOSTRACIÓN PRINCIPAL
+// PANEL PRINCIPAL DE ANÁLISIS
 // ================================
-// Muestra las funcionalidades principales del sistema
+// Panel principal con todas las funcionalidades del sistema
 
 import React, { useState } from 'react';
 import { useSicop } from '../context/SicopContext';
-import { FiltroBusqueda } from '../types/entities';
 import ModernDashboard from './ModernDashboard';
 import InstitucionesDashboard from './InstitucionesDashboard';
 import SicopExplorer from './SicopExplorer';
 import CategoryManager from './CategoryManager/CategoryManager';
 import ReportsPanel from './ReportsPanel';
+import './DemoPanel.css';
 
-export const DemoPanel: React.FC = () => {
+interface DemoPanelProps {
+  onGoBackToWelcome?: () => void;
+}
+
+export const DemoPanel: React.FC<DemoPanelProps> = ({ onGoBackToWelcome }) => {
   const { 
     estadisticasGenerales, 
     error
@@ -33,109 +37,125 @@ export const DemoPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'instituciones' | 'analysis' | 'reports' | 'categorias'>('dashboard');
 
   // ================================
-  // ESTILOS
-  // ================================
-
-  const tabStyle = (isActive: boolean) => ({
-    padding: '10px 20px',
-    backgroundColor: isActive ? '#3498db' : '#ecf0f1',
-    color: isActive ? 'white' : '#2c3e50',
-    border: 'none',
-    cursor: 'pointer',
-    borderRadius: '4px 4px 0 0',
-    marginRight: '2px'
-  });
-
-  const cardStyle = {
-    background: 'white',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    marginBottom: '20px'
-  };
-
-  // ================================
   // RENDERIZADO
   // ================================
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      backgroundColor: '#f5f5f5',
-      padding: '20px'
-    }}>
-      {/* Header */}
-      <div style={{
-        background: 'white',
-        padding: '20px',
-        borderRadius: '8px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        marginBottom: '20px',
-        textAlign: 'center'
-      }}>
-        <h1 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>
-          🏛️ SICOP Analytics - Panel de Demostración
-        </h1>
-        <p style={{ margin: 0, color: '#666' }}>
-          Análisis de Licitaciones Públicas • {estadisticasGenerales.carteles?.toLocaleString()} Carteles • 
-          {estadisticasGenerales.contratos?.toLocaleString()} Contratos
-        </p>
+    <div className="demo-panel-container">
+      {/* Modern Header */}
+      <div className="modern-header">
+        <div className="header-background">
+          <div className="header-pattern"></div>
+          <div className="header-orb header-orb-1"></div>
+          <div className="header-orb header-orb-2"></div>
+        </div>
+        
+        <div className="header-content">
+          <div className="header-logo-section">
+            <img 
+              src={`${process.env.PUBLIC_URL}/logo-hq-analytics.png`}
+              alt="HQ Analytics Logo" 
+              className="header-logo"
+            />
+            <div className="header-company-info">
+              <div className="company-name">Saenz Fallas S.A.</div>
+              <div className="company-tagline">HQ Analytics™ - High Technology Quality Analytics</div>
+            </div>
+          </div>
+          
+          <h1 className="header-title">
+            <span className="header-icon">🏛️</span>
+            <span className="header-title-text">SICOP Analytics - Sistema de Análisis</span>
+          </h1>
+          <p className="header-subtitle">
+            <span>Análisis Inteligente de Licitaciones Públicas de Costa Rica</span>
+            <span className="stat-badge">
+              📋 <span className="stat-number">{estadisticasGenerales.carteles?.toLocaleString()}</span> Carteles
+            </span>
+            <span className="stat-badge">
+              📄 <span className="stat-number">{estadisticasGenerales.contratos?.toLocaleString()}</span> Contratos
+            </span>
+          </p>
+          
+          {/* Botón de regreso al menú principal */}
+          {onGoBackToWelcome && (
+            <button 
+              className="back-to-welcome-button"
+              onClick={onGoBackToWelcome}
+              title="Volver al Menú Principal"
+            >
+              <span className="back-icon">🏠</span>
+              <span className="back-text">Menú Principal</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Error Display */}
       {error && (
-        <div style={{
-          ...cardStyle,
-          backgroundColor: '#ffebee',
-          border: '1px solid #e74c3c',
-          color: '#c0392b'
-        }}>
-          ⚠️ {error}
+        <div className="error-banner">
+          <span className="error-icon">⚠️</span>
+          <span>{error}</span>
         </div>
       )}
 
-      {/* Navigation Tabs */}
-      <div style={{ marginBottom: '20px' }}>
-        <button 
-          style={tabStyle(activeTab === 'dashboard')}
-          onClick={() => setActiveTab('dashboard')}
-        >
-          📊 Dashboard
-        </button>
-        <button 
-          style={tabStyle(activeTab === 'instituciones')}
-          onClick={() => setActiveTab('instituciones')}
-        >
-          🏢 Instituciones
-        </button>
-        <button 
-          style={tabStyle(activeTab === 'analysis')}
-          onClick={() => setActiveTab('analysis')}
-        >
-          � SICOP
-        </button>
-        <button 
-          style={tabStyle(activeTab === 'categorias')}
-          onClick={() => setActiveTab('categorias')}
-        >
-          🏷️ Categorías
-        </button>
-        <button 
-          style={tabStyle(activeTab === 'reports')}
-          onClick={() => setActiveTab('reports')}
-        >
-          📋 Reportes
-        </button>
+      {/* Modern Navigation Tabs */}
+      <div className="modern-tabs-container">
+        <div className="modern-tabs">
+          <button 
+            className={`tab-button ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActiveTab('dashboard')}
+          >
+            <div className="tab-button-content">
+              <span className="tab-icon">📊</span>
+              <span>Dashboard</span>
+            </div>
+          </button>
+
+          <button 
+            className={`tab-button ${activeTab === 'instituciones' ? 'active' : ''}`}
+            onClick={() => setActiveTab('instituciones')}
+          >
+            <div className="tab-button-content">
+              <span className="tab-icon">🏢</span>
+              <span>Instituciones</span>
+            </div>
+          </button>
+
+          <button 
+            className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`}
+            onClick={() => setActiveTab('analysis')}
+          >
+            <div className="tab-button-content">
+              <span className="tab-icon">🔍</span>
+              <span>SICOP</span>
+            </div>
+          </button>
+
+          <button 
+            className={`tab-button ${activeTab === 'categorias' ? 'active' : ''}`}
+            onClick={() => setActiveTab('categorias')}
+          >
+            <div className="tab-button-content">
+              <span className="tab-icon">🏷️</span>
+              <span>Categorías</span>
+            </div>
+          </button>
+
+          <button 
+            className={`tab-button ${activeTab === 'reports' ? 'active' : ''}`}
+            onClick={() => setActiveTab('reports')}
+          >
+            <div className="tab-button-content">
+              <span className="tab-icon">📋</span>
+              <span>Reportes</span>
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Tab Content */}
-      <div style={{
-        background: 'white',
-        padding: '20px',
-        borderRadius: '0 8px 8px 8px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        minHeight: '400px'
-      }}>
+      <div className="tab-content">
         {activeTab === 'dashboard' && (
           <ModernDashboard />
         )}
@@ -149,22 +169,51 @@ export const DemoPanel: React.FC = () => {
 
         {activeTab === 'analysis' && (
           <div>
-            <h2>� Búsqueda Específica por SICOP</h2>
+            <h2>🔍 Búsqueda Específica por SICOP</h2>
             <SicopExplorer />
           </div>
         )}
 
         {activeTab === 'categorias' && (
-          <div>
-            <h2>🏷️ Gestión de Categorías</h2>
-            <CategoryManager />
-          </div>
+          <CategoryManager />
         )}
 
         {activeTab === 'reports' && (
           <ReportsPanel />
         )}
       </div>
+
+      {/* Footer with Copyright */}
+      <footer className="app-footer">
+        <div className="footer-content">
+          <div className="footer-logo-section">
+            <img 
+              src={`${process.env.PUBLIC_URL}/logo-hq-analytics.png`}
+              alt="HQ Analytics Logo" 
+              className="footer-logo"
+            />
+            <div className="footer-company">
+              <strong>Saenz Fallas S.A.</strong>
+              <span>HQ Analytics™</span>
+            </div>
+          </div>
+          
+          <div className="footer-info">
+            <p className="copyright">
+              © 2025 Saenz Fallas S.A. - Todos los derechos reservados
+            </p>
+            <p className="footer-tagline">
+              High Technology Quality Analytics - Innovación en Análisis de Datos
+            </p>
+          </div>
+
+          <div className="footer-links">
+            <span className="footer-version">v1.0.0</span>
+            <span className="footer-separator">•</span>
+            <span>SICOP Analytics</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

@@ -58,6 +58,10 @@ const SicopExplorer: React.FC = () => {
     return inst?.nombreInstitucion || selected.cartel.codigoInstitucion;
   }, [selected, instituciones]);
 
+  const instCode = useMemo(() => {
+    return selected?.cartel?.codigoInstitucion || '';
+  }, [selected]);
+
   const lineasCols: SimpleColumn<any>[] = [
     { key: 'numeroLinea', header: '#', width: 60, align: 'center' },
     { key: 'descripcionLinea', header: 'Descripción', width: 420 },
@@ -253,13 +257,48 @@ const SicopExplorer: React.FC = () => {
         <>
           {/* 📊 Header Card with Cartel Info + Basic KPIs */}
           <div className="header-card">
-            <div className="header-info">
-              <div className="header-title">{selected.cartel?.nombreCartel || 'Cartel'}</div>
-              <div className="header-subtitle">{selected.numeroCartel} • {instName}</div>
+            <div className="header-banner">
+              <div className="header-badge">LICITACIÓN PÚBLICA</div>
+              <div className="header-title-section">
+                <h1 className="header-main-title">{selected.cartel?.nombreCartel || 'Cartel Sin Nombre'}</h1>
+                <div className="header-metadata">
+                  <span className="header-meta-item">
+                    <span className="meta-icon">📋</span>
+                    <span className="meta-label">SICOP:</span>
+                    <span className="meta-value">{selected.numeroCartel}</span>
+                  </span>
+                  {instCode && (
+                    <span className="header-meta-item">
+                      <span className="meta-icon">🏢</span>
+                      <span className="meta-label">Institución:</span>
+                      <span className="meta-value">{instCode}</span>
+                    </span>
+                  )}
+                  <span className="header-meta-item">
+                    <span className="meta-icon">🏛️</span>
+                    <span className="meta-label">{instName}</span>
+                  </span>
+                </div>
+              </div>
               <div className="header-chips">
-                {selected.cartel?.estadoCartel && <span className="chip">📋 {selected.cartel.estadoCartel}</span>}
-                {selected.cartel?.codigoProcedimiento && <span className="chip">🔖 {selected.cartel.codigoProcedimiento}</span>}
-                {selected.cartel?.codigoSistema && <span className="chip">💻 {selected.cartel.codigoSistema}</span>}
+                {selected.cartel?.estadoCartel && (
+                  <span className="chip chip-status">
+                    <span className="chip-icon">📋</span>
+                    {selected.cartel.estadoCartel}
+                  </span>
+                )}
+                {selected.cartel?.codigoProcedimiento && (
+                  <span className="chip chip-procedure">
+                    <span className="chip-icon">🔖</span>
+                    {selected.cartel.codigoProcedimiento}
+                  </span>
+                )}
+                {selected.cartel?.codigoSistema && (
+                  <span className="chip chip-system">
+                    <span className="chip-icon">💻</span>
+                    {selected.cartel.codigoSistema}
+                  </span>
+                )}
               </div>
             </div>
             <div className="header-kpis">

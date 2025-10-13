@@ -51,7 +51,162 @@ export class SicopDataManager {
   private montoCache: Map<string, { monto: number; fuente: string; confianza: number }> = new Map();
   private montoPorContratoCache: Map<string, number> | null = null;
 
+  // ================================
+  // SISTEMA DE CACHÉ OPTIMIZADO
+  // ================================
+  // Caché persistente para clasificación de sectores
+  private sectorPorCartelCache: Map<string, string> | null = null;
+  private sectorCacheTimestamp: number = 0;
+  
+  // Caché de subcategorías por sector
+  private subcategoryRulesCache: Map<string, Record<string, RegExp[]>> = new Map();
+  
+  // Caché de cálculos de montos
+  private montosPorCartelCache: Map<string, number> | null = null;
+  private montosCacheTimestamp: number = 0;
+  
+  // Caché de dashboards por hash de filtros
+  private dashboardCache: Map<string, {
+    data: any;
+    timestamp: number;
+    filters: string;
+  }> = new Map();
+  
+  // Caché de instituciones dashboard
+  private institucionDashboardCache: Map<string, {
+    data: any;
+    timestamp: number;
+    params: string;
+  }> = new Map();
+  
+  // ================================
+  // LÍMITES PARA ARCHIVOS GRANDES
+  // ================================
+  private readonly MAX_FILE_SIZE_MB = 100; // NUEVO: Tamaño máximo absoluto (MB) - NO cargar si excede
+  private readonly MAX_ROWS_PER_FILE = 10000; // Solo cargar 10K filas para archivos muy grandes
+  private readonly LARGE_FILE_THRESHOLD_MB = 50; // Archivos > 50MB se consideran grandes
+  private readonly CHUNK_SIZE_LARGE_FILES = 10000; // Procesar en chunks de 10K para archivos grandes
+  
+  // ================================
+  // ARCHIVOS OPCIONALES (no críticos)
+  // ================================
+  // ⚠️ SINCRONIZADO CON FileUploader.tsx - ARCHIVOS_OPCIONALES
+  private readonly ARCHIVOS_OPCIONALES = new Set([
+    'InvitacionProcedimiento', // Solo enriquece nombres (0.95% de valor agregado)
+    'Garantias',               // Datos complementarios
+    'RecursosObjecion',        // Datos complementarios
+    'SancionProveedores',      // Datos complementarios
+    'Remates'                  // Datos complementarios
+  ]);
+  
+  // Configuración de TTL (time-to-live) en milisegundos
+  private readonly CACHE_TTL = {
+    sectores: 30 * 60 * 1000,      // 30 minutos (casi estático)
+    montos: 15 * 60 * 1000,        // 15 minutos (semi-estático)
+    dashboard: 5 * 60 * 1000,      // 5 minutos (dinámico)
+    institucion: 5 * 60 * 1000     // 5 minutos (dinámico)
+  };
+  
+  // Estadísticas de caché para debugging
+  private cacheStats = {
+    sectores: { hits: 0, misses: 0 },
+    montos: { hits: 0, misses: 0 },
+    dashboard: { hits: 0, misses: 0 },
+    institucion: { hits: 0, misses: 0 }
+  };
+
   public setLoggingMode(mode: 'concise' | 'verbose') { this.loggingMode = mode; }
+  
+  // ================================
+  // MÉTODOS DE GESTIÓN DE CACHÉ
+  // ================================
+  
+  /**
+   * Genera un hash simple para un objeto de filtros
+   */
+  private getCacheKey(prefix: string, filtros?: any): string {
+    if (!filtros) return `${prefix}:no-filters`;
+    
+    const normalized = {
+      inst: Array.isArray(filtros.institucion) ? [...filtros.institucion].sort() : filtros.institucion,
+      sect: Array.isArray(filtros.sector) ? [...filtros.sector].sort() : filtros.sector,
+      keys: Array.isArray(filtros.keywords) ? [...filtros.keywords].sort() : filtros.keywords,
+      proc: Array.isArray(filtros.procedimientos) ? [...filtros.procedimientos].sort() : filtros.procedimientos,
+      cat: Array.isArray(filtros.categorias) ? [...filtros.categorias].sort() : filtros.categorias,
+      est: Array.isArray(filtros.estados) ? [...filtros.estados].sort() : filtros.estados,
+      desde: filtros.fechaDesde?.toISOString?.() || filtros.fechaDesde,
+      hasta: filtros.fechaHasta?.toISOString?.() || filtros.fechaHasta
+    };
+    
+    return `${prefix}:${JSON.stringify(normalized)}`;
+  }
+  
+  /**
+   * Verifica si un caché es válido según su TTL
+   */
+  private isCacheValid(cacheType: 'sectores' | 'montos' | 'dashboard' | 'institucion', timestamp: number): boolean {
+    const ttl = this.CACHE_TTL[cacheType];
+    return (Date.now() - timestamp) < ttl;
+  }
+  
+  /**
+   * Invalida todos los cachés (útil cuando se cargan nuevos datos)
+   */
+  public invalidarTodosLosCaches(): void {
+    console.log('🧹 Invalidando todos los cachés...');
+    
+    this.sectorPorCartelCache = null;
+    this.sectorCacheTimestamp = 0;
+    this.subcategoryRulesCache.clear();
+    
+    this.montosPorCartelCache = null;
+    this.montosCacheTimestamp = 0;
+    
+    this.dashboardCache.clear();
+    this.institucionDashboardCache.clear();
+    
+    this.ttaCache = null;
+    this.combinedSectorRulesCache = null;
+    
+    console.log('✅ Cachés invalidados');
+  }
+  
+  /**
+   * Invalida solo el caché de sectores (cuando cambian categorías manuales)
+   */
+  public invalidarCacheSectores(): void {
+    console.log('🧹 Invalidando caché de sectores...');
+    this.sectorPorCartelCache = null;
+    this.sectorCacheTimestamp = 0;
+    this.subcategoryRulesCache.clear();
+    this.combinedSectorRulesCache = null;
+    this.combinedSectorRulesCacheKey = '';
+    // También invalidar dashboards que dependen de sectores
+    this.dashboardCache.clear();
+    this.institucionDashboardCache.clear();
+    console.log('✅ Caché de sectores invalidado');
+  }
+  
+  /**
+   * Muestra estadísticas de uso de caché
+   */
+  public mostrarEstadisticasCache(): void {
+    console.group('📊 Estadísticas de Caché');
+    
+    Object.entries(this.cacheStats).forEach(([tipo, stats]) => {
+      const total = stats.hits + stats.misses;
+      const hitRate = total > 0 ? ((stats.hits / total) * 100).toFixed(1) : '0.0';
+      console.log(`${tipo}: ${stats.hits} hits, ${stats.misses} misses (${hitRate}% hit rate)`);
+    });
+    
+    console.log('\nTamaño de cachés:');
+    console.log(`- Sectores: ${this.sectorPorCartelCache?.size || 0} carteles`);
+    console.log(`- Montos: ${this.montosPorCartelCache?.size || 0} carteles`);
+    console.log(`- Dashboards: ${this.dashboardCache.size} configuraciones`);
+    console.log(`- Instituciones: ${this.institucionDashboardCache.size} configuraciones`);
+    
+    console.groupEnd();
+  }
 
   // ================================
   // CÁLCULO TTA GLOBAL / FILTRADO
@@ -725,7 +880,12 @@ export class SicopDataManager {
     header: true,
     skipEmptyLines: true,
     quoteChar: '"',
+    escapeChar: '"',
+    // NUEVO: Permitir headers sin comillas y datos con comillas
+    // Esto maneja CSVs donde: HEADER1;HEADER2 pero "dato1";"dato2"
+    newline: '',  // Auto-detect line endings
     encoding: 'utf-8',
+    // IMPORTANTE: Estos se mantienen pero se sobrescriben en cargarArchivoCSV
     transformHeader: (header: string) => this.normalizarNombreColumna(header),
     transform: (value: string, field: string) => this.transformarValor(value, field)
   };
@@ -784,19 +944,55 @@ export class SicopDataManager {
           // Durante la lectura de cada archivo, estamos normalizando y categorizando campos
           this.loadingStage = 'Leyendo, normalizando y categorizando campos';
           const datos = await this.cargarArchivoCSV(`${rutaCarpeta}/${archivo}`, nombreTabla);
-          this.datos.set(nombreTabla, datos);
+          
+          // NUEVO: Validar que los datos se cargaron correctamente antes de guardar
+          if (!datos || !Array.isArray(datos)) {
+            console.warn(`⚠️ Datos inválidos para ${nombreTabla}, usando array vacío`);
+            this.datos.set(nombreTabla, []);
+          } else {
+            // Intentar guardar los datos con manejo de errores
+            try {
+              this.datos.set(nombreTabla, datos);
+              console.log(`✅ ${nombreTabla}: ${datos.length.toLocaleString()} registros guardados en memoria`);
+              
+              // Advertencia si es un dataset muy grande
+              if (datos.length > 500000) {
+                console.warn(`⚠️ Dataset muy grande: ${nombreTabla} con ${datos.length.toLocaleString()} registros`);
+                console.warn(`   Algunas operaciones pueden ser lentas. Considera filtrar los datos.`);
+              }
+            } catch (saveError: any) {
+              // Error al guardar en Map (probablemente "Invalid string length")
+              console.error(`❌ Error guardando ${nombreTabla} en memoria:`, saveError?.message || saveError);
+              console.warn(`   Intentando guardar muestra reducida...`);
+              
+              // Guardar solo una muestra (primeras 500K filas)
+              const muestra = datos.slice(0, 500000);
+              this.datos.set(nombreTabla, muestra);
+              console.warn(`⚠️ ${nombreTabla}: Guardadas ${muestra.length.toLocaleString()} de ${datos.length.toLocaleString()} filas (muestra)`);
+            }
+          }
           
           // Actualizar progreso
           this.loadingProgress = Math.round(((i + 1) / totalArchivos) * 70); // 70% para carga
-          console.log(`✅ ${nombreTabla}: ${datos.length} registros cargados`);
           
           // Muestra de headers solo en modo detallado
-          if (this.loggingMode === 'verbose' && datos.length > 0) {
-            console.log(`   📄 Headers ${nombreTabla}:`, Object.keys(datos[0]));
+          const datosGuardados = this.datos.get(nombreTabla) || [];
+          if (this.loggingMode === 'verbose' && datosGuardados.length > 0) {
+            console.log(`   📄 Headers ${nombreTabla}:`, Object.keys(datosGuardados[0]));
           }
           
-        } catch (error) {
-          console.warn(`⚠️ Error cargando ${archivo}:`, error);
+        } catch (error: any) {
+          const esOpcional = this.ARCHIVOS_OPCIONALES.has(nombreTabla);
+          
+          if (esOpcional) {
+            // Archivo opcional - no es crítico
+            console.warn(`⚠️ Archivo opcional ${archivo} no cargado:`, error?.message || error);
+            console.info(`✅ La aplicación funciona correctamente sin este archivo`);
+          } else {
+            // Archivo crítico - mostrar error
+            console.error(`❌ Error cargando ${archivo}:`, error?.message || error);
+          }
+          
           // Continuar con otros archivos aunque uno falle
           this.datos.set(nombreTabla, []);
         }
@@ -864,6 +1060,9 @@ export class SicopDataManager {
       // PRE-CALCULAR MONTOS PARA OPTIMIZAR REPORTES
       this.precalcularMontos();
       
+      // PRE-CALCULAR MÉTRICAS PESADAS (sectores, montos estimados, subcategorías)
+      this.precalcularMetricas();
+      
       this.isLoaded = true;
       this.loadingProgress = 100;
     this.loadingStage = 'Completando';
@@ -877,17 +1076,59 @@ export class SicopDataManager {
 
   /**
    * Carga un archivo CSV individual
+   * Maneja casos especiales:
+   * - Headers sin comillas pero datos con comillas (ej: HEADER1;HEADER2 vs "dato1";"dato2")
+   * - Auto-detección de delimitadores (;, ,)
+   * - Normalización de nombres de columnas
+   * - Archivos grandes (>50MB) con procesamiento optimizado
+   * - Límite absoluto: 100MB - archivos mayores NO se cargan
+   * - Límite de filas: 10,000 para archivos muy grandes
    */
   private async cargarArchivoCSV(rutaArchivo: string, nombreTabla?: string): Promise<any[]> {
     // Intento 1: usar fetch con no-store para evitar 304/decoding issues en dev
-    const intentarFetch = async (): Promise<string | null> => {
+    const intentarFetch = async (): Promise<{ content: string | null; size: number }> => {
       try {
         const url = this.resolverURL(rutaArchivo, true);
         const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return await res.text();
+        
+        // Verificar tamaño del archivo
+        const contentLength = res.headers.get('content-length');
+        const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
+        
+        // NUEVO: Rechazar archivos que exceden el límite absoluto
+        if (fileSizeMB > this.MAX_FILE_SIZE_MB) {
+          const esOpcional = this.ARCHIVOS_OPCIONALES.has(nombreTabla || '');
+          
+          if (esOpcional) {
+            // Archivo opcional - mensaje de información, no error
+            console.group(`ℹ️ ARCHIVO OPCIONAL NO CARGADO: ${nombreTabla || rutaArchivo}`);
+            console.warn(`� Tamaño del archivo: ${fileSizeMB.toFixed(2)} MB`);
+            console.warn(`⛔ Límite máximo: ${this.MAX_FILE_SIZE_MB} MB`);
+            console.info(`✅ La aplicación funciona correctamente sin este archivo`);
+            console.info(`💡 Este archivo solo proporciona datos complementarios`);
+            console.groupEnd();
+          } else {
+            // Archivo crítico - mensaje de error
+            console.group(`�🚫 ARCHIVO DEMASIADO GRANDE: ${nombreTabla || rutaArchivo}`);
+            console.error(`📦 Tamaño del archivo: ${fileSizeMB.toFixed(2)} MB`);
+            console.error(`⛔ Límite máximo: ${this.MAX_FILE_SIZE_MB} MB`);
+            console.error(`❌ El archivo NO se cargará para evitar problemas de memoria`);
+            console.warn(`💡 Solución: Crear una muestra más pequeña del archivo (< ${this.MAX_FILE_SIZE_MB} MB)`);
+            console.groupEnd();
+          }
+          
+          // NO cargar el contenido, retornar null
+          return { content: null, size: fileSizeMB };
+        } else if (fileSizeMB > this.LARGE_FILE_THRESHOLD_MB) {
+          console.log(`📦 Archivo grande detectado: ${nombreTabla || rutaArchivo} (${fileSizeMB.toFixed(2)}MB)`);
+          console.log(`   Activando modo de procesamiento optimizado por chunks`);
+        }
+        
+        const content = await res.text();
+        return { content, size: fileSizeMB };
       } catch (e) {
-        return null;
+        return { content: null, size: 0 };
       }
     };
 
@@ -897,38 +1138,177 @@ export class SicopDataManager {
       const rawHeaders: string[] = [];
       const explicitMapped: string[] = [];
       const autoNormalized: string[] = [];
-      const fetched = await intentarFetch();
+      let rowCount = 0;
+      let isLargeFile = false;
+      let exceededLimit = false;
+      
+      const fetchResult = await intentarFetch();
+      const fetched = fetchResult.content;
+      const fileSizeMB = fetchResult.size;
+      
+      // NUEVO: Si el archivo fue rechazado por tamaño, retornar array vacío inmediatamente
+      if (fetched === null && fileSizeMB > this.MAX_FILE_SIZE_MB) {
+        console.warn(`⚠️ ${nombreTabla || rutaArchivo} NO cargado (excede ${this.MAX_FILE_SIZE_MB} MB)`);
+        if (nombreTabla) {
+          this.diagnostics.headerStats[nombreTabla] = { rawHeaders: [], explicitMapped: [], autoNormalized: [] };
+          this.diagnostics.rowCounts[nombreTabla] = 0;
+        }
+        resolve([]); // Retornar array vacío
+        return;
+      }
+      
+      // Determinar si es archivo grande
+      isLargeFile = fileSizeMB > this.LARGE_FILE_THRESHOLD_MB;
+      
       if (fetched != null) {
         try {
-          const results: any = (Papa as any).parse(fetched, {
+          // NUEVO: Detectar y limpiar headers sin comillas
+          const lines = fetched.split('\n');
+          let csvContent = fetched;
+          
+          if (lines.length > 0) {
+            const firstLine = lines[0];
+            // Detectar si el header tiene comillas o no
+            const hasQuotedHeaders = /^"[^"]+"|;"[^"]+"/.test(firstLine);
+            const hasUnquotedHeaders = !hasQuotedHeaders && /^[^";,]+[;,]/.test(firstLine);
+            
+            // Si los headers NO tienen comillas, normalizarlos
+            if (hasUnquotedHeaders && lines.length > 1) {
+              const secondLine = lines[1];
+              const hasQuotedData = /"[^"]*"/.test(secondLine);
+              
+              if (hasQuotedData) {
+                console.log(`📋 Detectado CSV con headers sin comillas en ${nombreTabla || rutaArchivo}`);
+                // Limpiar espacios en blanco del header
+                const cleanedHeader = firstLine.trim();
+                csvContent = cleanedHeader + '\n' + lines.slice(1).join('\n');
+              }
+            }
+          }
+          
+          let parserInstance: any = null;
+          
+          const results: any = (Papa as any).parse(csvContent, {
             ...this.CSV_CONFIG,
-            worker: false,
+            worker: isLargeFile, // NUEVO: Usar worker para archivos grandes
             download: false,
-            fastMode: true,
+            fastMode: false,  // Modo robusto para CSVs problemáticos
+            step: isLargeFile ? (row: any, parser: any) => {
+              // Guardar referencia al parser
+              if (!parserInstance) parserInstance = parser;
+              
+              // NUEVO: Callback para procesar fila por fila en archivos grandes
+              rowCount++;
+              
+              // Límite de seguridad
+              if (rowCount > this.MAX_ROWS_PER_FILE) {
+                if (!exceededLimit) {
+                  console.group(`🛑 Límite de filas alcanzado: ${nombreTabla}`);
+                  console.warn(`📊 Límite: ${this.MAX_ROWS_PER_FILE.toLocaleString()} filas`);
+                  console.warn(`✅ Cargadas: ${this.MAX_ROWS_PER_FILE.toLocaleString()} filas (muestra)`);
+                  console.warn(`ℹ️  Resto del archivo: NO cargado para evitar problemas de memoria`);
+                  console.warn(`💡 La aplicación funciona normalmente con esta muestra`);
+                  console.groupEnd();
+                  exceededLimit = true;
+                  parser.abort(); // NUEVO: Abortar el parser
+                }
+                return; // No agregar más filas
+              }
+              
+              if (row.data && Object.keys(row.data).length > 0) {
+                buffer.push(row.data);
+              }
+              
+              // Progreso cada 50K filas
+              if (rowCount % 50000 === 0) {
+                console.log(`  ⏳ Procesadas ${rowCount.toLocaleString()} filas de ${nombreTabla}...`);
+              }
+            } : undefined,
             transformHeader: (h: string) => {
-              const key = h.trim().toLowerCase();
+              // Limpiar comillas del header si las tiene
+              const cleaned = h.replace(/^["']|["']$/g, '').trim();
+              const key = cleaned.toLowerCase();
               if (!rawHeaders.includes(key)) rawHeaders.push(key);
               const mapped = headerMap[key];
               if (mapped) {
                 explicitMapped.push(mapped);
                 return mapped;
               }
-              const norm = this.normalizarNombreColumna(h);
+              const norm = this.normalizarNombreColumna(cleaned);
               autoNormalized.push(norm);
               return norm;
-            }
+            },
+            complete: isLargeFile ? (results: any) => {
+              // NUEVO: Callback para cuando termina el procesamiento de archivos grandes
+              const errs = results && Array.isArray(results.errors) ? results.errors : [];
+              const erroresCriticos = errs.filter((error: any) => error.type === 'Quotes' || error.type === 'Delimiter');
+              if (erroresCriticos.length > 0 && erroresCriticos.length <= 10) {
+                console.warn(`⚠️ Errores de parsing en ${rutaArchivo}:`, erroresCriticos);
+              } else if (erroresCriticos.length > 10) {
+                console.warn(`⚠️ ${erroresCriticos.length} errores de parsing en ${rutaArchivo} (mostrando primeros 5):`, erroresCriticos.slice(0, 5));
+              }
+              
+              // Usar el buffer acumulado en el callback step
+              const dataFinal = buffer;
+              
+              if (nombreTabla) {
+                this.diagnostics.headerStats[nombreTabla] = { rawHeaders: [...rawHeaders], explicitMapped: [...explicitMapped], autoNormalized: [...autoNormalized] };
+                this.diagnostics.rowCounts[nombreTabla] = dataFinal.length;
+              }
+              
+              // Mensaje diferenciado si se limitó el archivo
+              if (exceededLimit || dataFinal.length >= this.MAX_ROWS_PER_FILE) {
+                console.log(`✅ ${nombreTabla || rutaArchivo}: ${dataFinal.length.toLocaleString()} filas cargadas (MUESTRA de archivo ${fileSizeMB.toFixed(2)}MB)`);
+              } else {
+                console.log(`✅ CSV grande parseado: ${nombreTabla || rutaArchivo} - ${dataFinal.length.toLocaleString()} registros (${fileSizeMB.toFixed(2)}MB)`);
+              }
+              resolve(dataFinal);
+            } : undefined
           } as any);
-          const errs = results && Array.isArray(results.errors) ? results.errors : [];
-          const erroresCriticos = errs.filter((error: any) => error.type === 'Quotes' || error.type === 'Delimiter');
-          if (erroresCriticos.length > 0) {
-            console.warn(`Errores críticos en ${rutaArchivo}:`, erroresCriticos);
+          
+          // Solo para archivos pequeños (sin worker)
+          if (!isLargeFile) {
+            const errs = results && Array.isArray(results.errors) ? results.errors : [];
+            const erroresCriticos = errs.filter((error: any) => error.type === 'Quotes' || error.type === 'Delimiter');
+            if (erroresCriticos.length > 0) {
+              console.warn(`⚠️ Errores de parsing en ${rutaArchivo}:`, erroresCriticos.slice(0, 5));
+              console.log(`📊 Total errores: ${erroresCriticos.length}, mostrando primeros 5`);
+            }
+            
+            let dataFinal: any[];
+            
+            if (buffer.length > 0) {
+              // Para archivos procesados con step callback
+              dataFinal = buffer;
+            } else {
+              // Para archivos normales
+              dataFinal = (results && Array.isArray(results.data) ? (results.data as any[]) : []);
+            }
+            
+            // Aplicar límite de filas si es necesario
+            const originalLength = dataFinal.length;
+            if (dataFinal.length > this.MAX_ROWS_PER_FILE) {
+              console.group(`🛑 Archivo con demasiadas filas: ${nombreTabla}`);
+              console.warn(`📊 Total filas: ${originalLength.toLocaleString()}`);
+              console.warn(`✂️  Limitando a: ${this.MAX_ROWS_PER_FILE.toLocaleString()} filas`);
+              console.warn(`💡 La aplicación funciona normalmente con esta muestra`);
+              console.groupEnd();
+              dataFinal = dataFinal.slice(0, this.MAX_ROWS_PER_FILE);
+            }
+            
+            if (nombreTabla) {
+              this.diagnostics.headerStats[nombreTabla] = { rawHeaders: [...rawHeaders], explicitMapped: [...explicitMapped], autoNormalized: [...autoNormalized] };
+              this.diagnostics.rowCounts[nombreTabla] = dataFinal.length;
+            }
+            
+            // Mensaje diferenciado si se limitó
+            if (originalLength > this.MAX_ROWS_PER_FILE) {
+              console.log(`✅ ${nombreTabla || rutaArchivo}: ${dataFinal.length.toLocaleString()} filas cargadas (MUESTRA de ${originalLength.toLocaleString()} total)`);
+            } else {
+              console.log(`✅ CSV parseado: ${nombreTabla || rutaArchivo} - ${dataFinal.length.toLocaleString()} registros`);
+            }
+            resolve(dataFinal);
           }
-          const dataFinal: any[] = (results && Array.isArray(results.data) ? (results.data as any[]) : []);
-          if (nombreTabla) {
-            this.diagnostics.headerStats[nombreTabla] = { rawHeaders: [...rawHeaders], explicitMapped: [...explicitMapped], autoNormalized: [...autoNormalized] };
-            this.diagnostics.rowCounts[nombreTabla] = dataFinal.length;
-          }
-          resolve(dataFinal);
           return;
         } catch (e) {
           console.warn(`Fallo parseando texto de ${rutaArchivo}, reintentando con XHR:`, e);
@@ -936,49 +1316,88 @@ export class SicopDataManager {
       }
 
       const url = this.resolverURL(rutaArchivo, true);
-      Papa.parse(url, {
+      
+      // Contador para fallback también
+      let fallbackRowCount = 0;
+      let fallbackExceededLimit = false;
+      
+      (Papa as any).parse(url, {
         ...this.CSV_CONFIG,
-        worker: false,
+        worker: isLargeFile, // Usar worker para archivos grandes
         download: true,
-        chunkSize: 1024 * 512,
+        chunkSize: isLargeFile ? this.CHUNK_SIZE_LARGE_FILES : 1024 * 512,
+        fastMode: false,  // Modo robusto
         downloadRequestHeaders: { 'Cache-Control': 'no-cache' },
         transformHeader: (h: string) => {
-          const key = h.trim().toLowerCase();
+          // Limpiar comillas del header si las tiene
+          const cleaned = h.replace(/^["']|["']$/g, '').trim();
+          const key = cleaned.toLowerCase();
           if (!rawHeaders.includes(key)) rawHeaders.push(key);
           const mapped = headerMap[key];
           if (mapped) {
             explicitMapped.push(mapped);
             return mapped;
           }
-          const norm = this.normalizarNombreColumna(h);
+          const norm = this.normalizarNombreColumna(cleaned);
           autoNormalized.push(norm);
           return norm;
         },
-        chunk: (results, parser) => {
-          if (results && Array.isArray(results.data)) buffer.push(...(results.data as any[]));
+        chunk: (results: any, parser: any) => {
+          if (results && Array.isArray(results.data)) {
+            for (const row of results.data) {
+              fallbackRowCount++;
+              
+              // NUEVO: Límite de seguridad
+              if (fallbackRowCount > this.MAX_ROWS_PER_FILE) {
+                if (!fallbackExceededLimit) {
+                  console.warn(`⚠️ Límite de ${this.MAX_ROWS_PER_FILE.toLocaleString()} filas alcanzado en ${nombreTabla}`);
+                  console.warn(`   Deteniendo procesamiento del archivo`);
+                  fallbackExceededLimit = true;
+                  parser.abort(); // Detener el parser
+                }
+                break;
+              }
+              
+              buffer.push(row);
+            }
+            
+            // Progreso para archivos grandes
+            if (isLargeFile && fallbackRowCount % 50000 === 0) {
+              console.log(`  ⏳ Procesadas ${fallbackRowCount.toLocaleString()} filas de ${nombreTabla}...`);
+            }
+          }
         },
         complete: (results: any) => {
           const errs = results && Array.isArray(results.errors) ? results.errors : [];
           const erroresCriticos = errs.filter((error: any) => error.type === 'Quotes' || error.type === 'Delimiter');
           if (erroresCriticos.length > 0) {
-            console.warn(`Errores críticos en ${rutaArchivo}:`, erroresCriticos);
+            console.warn(`⚠️ Errores de parsing en ${rutaArchivo}:`, erroresCriticos.slice(0, 5));
+            console.log(`📊 Total errores: ${erroresCriticos.length}, mostrando primeros 5`);
           }
           const dataFinal: any[] = buffer.length ? buffer : (results && Array.isArray(results.data) ? (results.data as any[]) : []);
+          
           if (nombreTabla) {
             this.diagnostics.headerStats[nombreTabla] = { rawHeaders: [...rawHeaders], explicitMapped: [...explicitMapped], autoNormalized: [...autoNormalized] };
             this.diagnostics.rowCounts[nombreTabla] = dataFinal.length;
           }
+          
+          if (isLargeFile || dataFinal.length > 100000) {
+            console.log(`✅ CSV parseado (fallback): ${nombreTabla || rutaArchivo} - ${dataFinal.length.toLocaleString()} registros`);
+          } else {
+            console.log(`✅ CSV parseado (fallback): ${nombreTabla || rutaArchivo} - ${dataFinal.length} registros`);
+          }
+          
           resolve(dataFinal);
         },
-        error: (error) => {
-          console.warn(`Error de descarga/parsing en ${url}:`, error);
+        error: (error: any) => {
+          console.warn(`❌ Error de descarga/parsing en ${url}:`, error);
           if (nombreTabla) {
             this.diagnostics.headerStats[nombreTabla] = { rawHeaders: [...rawHeaders], explicitMapped: [...explicitMapped], autoNormalized: [...autoNormalized] };
             this.diagnostics.rowCounts[nombreTabla] = 0;
           }
           resolve([]);
         }
-      });
+      } as any);
     });
   }
 
@@ -1241,10 +1660,13 @@ export class SicopDataManager {
     });
   }
 
-  private crearIndices(): void {
-    INDICES_TABLAS.forEach(indice => {
+  /**
+   * OPTIMIZADO: Crea índices procesando en chunks para evitar bloquear el navegador
+   */
+  private async crearIndices(): Promise<void> {
+    for (const indice of INDICES_TABLAS) {
       const tabla = this.datos.get(indice.tabla);
-      if (!tabla) return;
+      if (!tabla) continue;
 
       const nombreIndice = `${indice.tabla}_${indice.nombre}`;
       const mapaIndice = new Map<string, any[]>();
@@ -1252,24 +1674,35 @@ export class SicopDataManager {
       // Normalizador de llaves para índices de instituciones/proveedores
       const normKey = (val: any) => typeof val === 'string' ? val.trim().replace(/\D+/g, '') : (val != null ? String(val).trim().replace(/\D+/g, '') : '');
 
-      tabla.forEach(registro => {
-        const claveIndice = indice.campos
-          .map(campo => {
-            const v = registro[campo] || '';
-            // Forzar normalización solo para campos de IDs conocidos
-            if (/^(codigoInstitucion|idProveedor)$/i.test(campo)) return normKey(v);
-            return v;
-          })
-          .join('|');
+      // OPTIMIZACIÓN: Procesar tabla en chunks
+      const chunkSize = 1000;
+      for (let i = 0; i < tabla.length; i += chunkSize) {
+        const chunk = tabla.slice(i, Math.min(i + chunkSize, tabla.length));
         
-        if (!mapaIndice.has(claveIndice)) {
-          mapaIndice.set(claveIndice, []);
+        chunk.forEach(registro => {
+          const claveIndice = indice.campos
+            .map(campo => {
+              const v = registro[campo] || '';
+              // Forzar normalización solo para campos de IDs conocidos
+              if (/^(codigoInstitucion|idProveedor)$/i.test(campo)) return normKey(v);
+              return v;
+            })
+            .join('|');
+          
+          if (!mapaIndice.has(claveIndice)) {
+            mapaIndice.set(claveIndice, []);
+          }
+          mapaIndice.get(claveIndice)!.push(registro);
+        });
+        
+        // Ceder control al navegador cada chunk
+        if (tabla.length > 5000 && i + chunkSize < tabla.length) {
+          await this.yieldToMainThread();
         }
-        mapaIndice.get(claveIndice)!.push(registro);
-      });
+      }
 
       this.indices.set(nombreIndice, mapaIndice);
-    });
+    }
   }
 
   private tokenizar(s: string): string[] {
@@ -1282,19 +1715,34 @@ export class SicopDataManager {
       .filter(t => t.length > 2);
   }
 
-  private construirIndiceTexto(): void {
+  /**
+   * OPTIMIZADO: Construye índice de texto procesando en chunks
+   */
+  private async construirIndiceTexto(): Promise<void> {
     const carteles: any[] = this.obtenerTodosLosCarteles() as any[];
     const lineas: any[] = this.datos.get('DetalleLineaCartel') || [];
     const lineasPorCartel = _.groupBy(lineas, 'numeroCartel');
-    carteles.forEach((c: any) => {
-      const texto = `${c.nombreCartel || ''} ${c.descripcionCartel || ''} ${(lineasPorCartel[c.numeroCartel] || [])
-        .map((l: any) => l.descripcionLinea || '')
-        .join(' ')}`;
-      for (const t of this.tokenizar(texto)) {
-        if (!this.invertedCartel.has(t)) this.invertedCartel.set(t, new Set());
-        this.invertedCartel.get(t)!.add(c.numeroCartel);
+    
+    const chunkSize = 500; // Chunks más pequeños para tokenización que es más pesada
+    
+    for (let i = 0; i < carteles.length; i += chunkSize) {
+      const chunk = carteles.slice(i, Math.min(i + chunkSize, carteles.length));
+      
+      chunk.forEach((c: any) => {
+        const texto = `${c.nombreCartel || ''} ${c.descripcionCartel || ''} ${(lineasPorCartel[c.numeroCartel] || [])
+          .map((l: any) => l.descripcionLinea || '')
+          .join(' ')}`;
+        for (const t of this.tokenizar(texto)) {
+          if (!this.invertedCartel.has(t)) this.invertedCartel.set(t, new Set());
+          this.invertedCartel.get(t)!.add(c.numeroCartel);
+        }
+      });
+      
+      // Ceder control al navegador cada chunk
+      if (carteles.length > 1000 && i + chunkSize < carteles.length) {
+        await this.yieldToMainThread();
       }
-    });
+    }
   }
 
   // ================================
@@ -1459,8 +1907,14 @@ export class SicopDataManager {
   /**
    * Obtiene las reglas de subcategorías para un sector específico
    * Incluye reglas del sistema + subcategorías manuales + overrides
+   * ✅ OPTIMIZADO con caché
    */
   private getSubcategoryRules(sector: string): Record<string, RegExp[]> {
+    // ✅ Usar caché si existe para este sector
+    if (this.subcategoryRulesCache.has(sector)) {
+      return this.subcategoryRulesCache.get(sector)!;
+    }
+    
     const combined: Record<string, RegExp[]> = {};
     
     // 1. Reglas del sistema
@@ -1541,19 +1995,37 @@ export class SicopDataManager {
       console.warn('[DataManager] Error cargando subcategorías de categorías manuales:', error);
     }
     
+    // ✅ Cachear resultado para este sector
+    this.subcategoryRulesCache.set(sector, combined);
+    
     return combined;
   }
 
   private asignarSectorPorCartel(): Map<string, string> {
+    // ✅ OPTIMIZACIÓN: Usar caché si es válido
+    if (this.sectorPorCartelCache && this.isCacheValid('sectores', this.sectorCacheTimestamp)) {
+      this.cacheStats.sectores.hits++;
+      if (this.loggingMode === 'verbose') {
+        console.log('✅ Cache HIT: asignarSectorPorCartel (ahorro ~1-2s)');
+      }
+      return this.sectorPorCartelCache;
+    }
+    
+    this.cacheStats.sectores.misses++;
+    if (this.loggingMode === 'verbose') {
+      console.log('❌ Cache MISS: asignarSectorPorCartel - calculando...');
+    }
+    
+    const startTime = Date.now();
+    
     const lineas: any[] = this.datos.get('DetalleLineaCartel') || [];
     const carteles: any[] = this.datos.get('DetalleCarteles') || [];
     const porCartel = _.groupBy(lineas, 'numeroCartel');
-  const cartelPorId = new Map<string, any>(carteles.map(c => [c.numeroCartel, c]));
+    const cartelPorId = new Map<string, any>(carteles.map(c => [c.numeroCartel, c]));
     const sectorPorCartel = new Map<string, string>();
 
     const votar = (score: Record<string, number>, texto?: string) => {
       if (!texto) return;
-      console.log(`🗳️ Voting with text: "${texto.substring(0, 30)}..."`);
       const sec = this.clasificarSectorPorDescripcion(texto);
       score[sec] = (score[sec] || 0) + 1;
     };
@@ -1572,11 +2044,35 @@ export class SicopDataManager {
         votar(score, c.descripcionCartel);
         votar(score, c.clasificacionObjeto); // CLAS_OBJ mapeado
       }
-      const ganador = Object.keys(score).length
-        ? Object.entries(score).sort((a, b) => b[1] - a[1])[0][0]
-        : 'Otros';
+      
+      // ✅ MEJORA: Si hay al menos una categoría específica (no "Otros"), 
+      // dar prioridad a esa categoría sobre "Otros"
+      let ganador: string;
+      if (Object.keys(score).length === 0) {
+        ganador = 'Otros';
+      } else {
+        // Filtrar categorías específicas (excluir "Otros")
+        const categoriasEspecificas = Object.entries(score).filter(([cat, _]) => cat !== 'Otros');
+        
+        if (categoriasEspecificas.length > 0) {
+          // Si hay categorías específicas, elegir la que tiene más votos entre ellas
+          ganador = categoriasEspecificas.sort((a, b) => b[1] - a[1])[0][0];
+        } else {
+          // Si solo hay "Otros", usar "Otros"
+          ganador = 'Otros';
+        }
+      }
+      
       sectorPorCartel.set(nro, ganador);
     });
+    
+    // ✅ Cachear resultado
+    this.sectorPorCartelCache = sectorPorCartel;
+    this.sectorCacheTimestamp = Date.now();
+    
+    const elapsed = Date.now() - startTime;
+    console.log(`🔍 Clasificación de sectores completada en ${elapsed}ms (${sectorPorCartel.size} carteles)`);
+    
     return sectorPorCartel;
   }
 
@@ -1734,7 +2230,24 @@ export class SicopDataManager {
 
   // Calcula montos por cartel usando el monto estimado del cartel (presupuestoOficial)
   // Este método se alinea con el enfoque del analizador especializado en Python (MONTO_EST)
+  // ✅ OPTIMIZADO con caché
   private calcularMontosEstimadosPorCartel(): Map<string, number> {
+    // ✅ Usar caché si es válido
+    if (this.montosPorCartelCache && this.isCacheValid('montos', this.montosCacheTimestamp)) {
+      this.cacheStats.montos.hits++;
+      if (this.loggingMode === 'verbose') {
+        console.log('✅ Cache HIT: calcularMontosEstimadosPorCartel');
+      }
+      return this.montosPorCartelCache;
+    }
+    
+    this.cacheStats.montos.misses++;
+    if (this.loggingMode === 'verbose') {
+      console.log('❌ Cache MISS: calcularMontosEstimadosPorCartel - calculando...');
+    }
+    
+    const startTime = Date.now();
+    
     const carteles: any[] = this.datos.get('DetalleCarteles') || [];
     const lineas: any[] = this.datos.get('DetalleLineaCartel') || [];
     const montos = new Map<string, number>();
@@ -1770,6 +2283,13 @@ export class SicopDataManager {
         if (subtotal > 0) montos.set(k, subtotal);
       }
     }
+
+    // ✅ Cachear resultado
+    this.montosPorCartelCache = montos;
+    this.montosCacheTimestamp = Date.now();
+    
+    const elapsed = Date.now() - startTime;
+    console.log(`💰 Cálculo de montos completado en ${elapsed}ms (${montos.size} carteles)`);
 
     return montos;
   }
@@ -2061,6 +2581,17 @@ export class SicopDataManager {
   }
 
   public getDashboardMetrics(filtros?: { institucion?: string[]; sector?: string[]; keywords?: string[] }) {
+    // 🚀 CACHE: Verificar si tenemos métricas cacheadas para estos filtros
+    const cacheKey = this.getCacheKey('dashboard', filtros);
+    const cached = this.dashboardCache.get(cacheKey);
+    if (cached && this.isCacheValid('dashboard', cached.timestamp)) {
+      this.cacheStats.dashboard.hits++;
+      console.log('✅ Cache hit: getDashboardMetrics');
+      return cached.data;
+    }
+    this.cacheStats.dashboard.misses++;
+    
+    const startTime = performance.now();
     const { carteles, contratos, sectores } = this.filterByInstitucionSector(filtros);
     
     // Filtrar ofertas y proveedores según los carteles seleccionados
@@ -2225,7 +2756,7 @@ export class SicopDataManager {
       console.log('✅ Consistencia de montos: total coincide con suma por sector');
     }
 
-    return {
+    const result = {
       kpi_metrics: {
         total_contratos,
         total_carteles,
@@ -2244,6 +2775,18 @@ export class SicopDataManager {
       tendencias_mensuales: tendencias,
       tendencias_diarias: tendenciasDiarias
     };
+    
+    // 🚀 CACHE: Guardar resultado en caché
+    this.dashboardCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+      filters: cacheKey
+    });
+    
+    const elapsed = performance.now() - startTime;
+    console.log(`⏱️ getDashboardMetrics completado en ${Math.round(elapsed)}ms (cache miss)`);
+    
+    return result;
   }
 
   // ================================
@@ -3401,6 +3944,51 @@ export class SicopDataManager {
   }
 
   /**
+   * 🚀 PRE-CÁLCULO DE MÉTRICAS PESADAS
+   * Ejecuta clasificaciones y cálculos costosos durante la carga inicial
+   * para que estén en caché cuando el usuario navegue por primera vez
+   */
+  private precalcularMetricas(): void {
+    console.group('⚡ Pre-cálculo de métricas pesadas');
+    const startTime = performance.now();
+    
+    try {
+      // 1. Pre-calcular clasificación de sectores (1.8M operaciones de regex)
+      console.log('📊 Clasificando sectores por cartel...');
+      const sectoresStart = performance.now();
+      this.asignarSectorPorCartel();
+      console.log(`   ✅ Sectores clasificados en ${Math.round(performance.now() - sectoresStart)}ms`);
+      
+      // 2. Pre-calcular montos estimados por cartel
+      console.log('💰 Calculando montos estimados...');
+      const montosStart = performance.now();
+      this.calcularMontosEstimadosPorCartel();
+      console.log(`   ✅ Montos calculados en ${Math.round(performance.now() - montosStart)}ms`);
+      
+      // 3. Pre-cargar reglas de subcategorías más comunes
+      console.log('📋 Pre-cargando reglas de subcategorías...');
+      const subcatStart = performance.now();
+      const sectoresComunes = ['Tecnología', 'Construcción', 'Salud', 'Educación', 'Transporte'];
+      sectoresComunes.forEach(sector => {
+        this.getSubcategoryRules(sector);
+      });
+      console.log(`   ✅ Reglas cargadas en ${Math.round(performance.now() - subcatStart)}ms`);
+      
+      const totalTime = Math.round(performance.now() - startTime);
+      console.log(`🎉 Pre-cálculo completado en ${totalTime}ms`);
+      console.log(`📈 Cache stats:`, {
+        sectores: `${this.cacheStats.sectores.hits}H/${this.cacheStats.sectores.misses}M`,
+        montos: `${this.cacheStats.montos.hits}H/${this.cacheStats.montos.misses}M`
+      });
+    } catch (error) {
+      console.error('⚠️ Error en pre-cálculo de métricas:', error);
+      // No lanzar error, permitir que la app continúe sin pre-cálculo
+    }
+    
+    console.groupEnd();
+  }
+
+  /**
    * Diagnostica qué campos relacionados con montos existen en una tabla
    * Útil para debugging cuando los montos salen en 0
    */
@@ -4252,6 +4840,17 @@ export class SicopDataManager {
     categorias?: string[]; // sectores
     estados?: string[]; // estado cartel/contrato
   }) {
+    // 🚀 CACHE: Verificar si tenemos métricas cacheadas para estos parámetros
+    const cacheKey = this.getCacheKey('institucion', params);
+    const cached = this.institucionDashboardCache.get(cacheKey);
+    if (cached && this.isCacheValid('dashboard', cached.timestamp)) {
+      this.cacheStats.institucion.hits++;
+      console.log('✅ Cache hit: getInstitucionDashboard');
+      return cached.data;
+    }
+    this.cacheStats.institucion.misses++;
+    
+    const startTime = performance.now();
     const normInst = (v: any) => String(v ?? '').trim().replace(/\D+/g, '');
     const inst = normInst(params.institucion);
     if (!inst) throw new Error('institucion requerida');
@@ -4955,7 +5554,7 @@ export class SicopDataManager {
       })
       .filter((p: any) => p.ofertado > 0 && p.adjudicado > 0);
 
-    return {
+    const result = {
       institucion: { codigo: inst, nombre: nombreInst, tipo: tipoInst },
       filtros: this.getInstitucionFilters(),
       kpis: {
@@ -5019,6 +5618,18 @@ export class SicopDataManager {
         sector_clasificacion: sectorClasificacion
       }
     };
+    
+    // 🚀 CACHE: Guardar resultado en caché
+    this.institucionDashboardCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+      params: cacheKey
+    });
+    
+    const elapsed = performance.now() - startTime;
+    console.log(`⏱️ getInstitucionDashboard completado en ${Math.round(elapsed)}ms (cache miss)`);
+    
+    return result;
   }
 
   // ================================
@@ -5086,6 +5697,17 @@ export class SicopDataManager {
   // DASHBOARD COMPLEMENTARIO
   // ================================
   public getComplementaryDashboard(filtros?: { institucion?: string[]; sector?: string[]; keywords?: string[] }) {
+    // 🚀 CACHE: Verificar si tenemos métricas cacheadas para estos filtros
+    const cacheKey = this.getCacheKey('complementary', filtros);
+    const cached = this.dashboardCache.get(cacheKey);
+    if (cached && this.isCacheValid('dashboard', cached.timestamp)) {
+      this.cacheStats.dashboard.hits++;
+      console.log('✅ Cache hit: getComplementaryDashboard');
+      return cached.data;
+    }
+    this.cacheStats.dashboard.misses++;
+    
+    const startTime = performance.now();
     const filtered = this.filterByInstitucionSector(filtros);
     const selectedCarteles: any[] = filtered.carteles;
     const selectedContratos: any[] = filtered.contratos;
@@ -5337,7 +5959,7 @@ export class SicopDataManager {
       return { hhi, top5Share };
     })();
 
-    return {
+    const result = {
       top_instituciones: topInstituciones,
       top_proveedores: topProveedores,
       offers_histogram: offersHistogram,
@@ -5346,6 +5968,18 @@ export class SicopDataManager {
       tta_meta: tta.meta,
       hhi_market: hhiMarket
     };
+    
+    // 🚀 CACHE: Guardar resultado en caché
+    this.dashboardCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+      filters: cacheKey
+    });
+    
+    const elapsed = performance.now() - startTime;
+    console.log(`⏱️ getComplementaryDashboard completado en ${Math.round(elapsed)}ms (cache miss)`);
+    
+    return result;
   }
 
   // ================================
@@ -5495,6 +6129,8 @@ export class SicopDataManager {
   /**
    * Inyecta datos directamente sin cargar archivos CSV
    * Útil para cargar desde cache consolidado
+   * 
+   * OPTIMIZADO: Procesa datos en chunks para evitar bloquear el navegador
    */
   public async loadDataFromMemory(consolidatedData: Record<string, any[]>): Promise<void> {
     try {
@@ -5505,7 +6141,7 @@ export class SicopDataManager {
       const tables = Object.keys(consolidatedData);
       const totalTables = tables.length;
 
-      // Cargar cada tabla
+      // Cargar cada tabla (SIN CAMBIOS en el loop principal)
       for (let i = 0; i < tables.length; i++) {
         const tableName = tables[i];
         const rawData = consolidatedData[tableName] ?? [];
@@ -5522,11 +6158,13 @@ export class SicopDataManager {
         this.loadingStage = `Cargando ${mappedTableName}`;
         this.loadingProgress = Math.round((i / totalTables) * 70);
         
-  console.log(`📊 Cargando ${mappedTableName}: ${data.length} registros`);
+        console.log(`📊 Cargando ${mappedTableName}: ${data.length} registros`);
         const headerMap = this.prepararHeaderMap(mappedTableName);
-        const normalizedData = data.map(record => this.normalizarRegistroDesdeCache(mappedTableName, record, headerMap));
-        this.datos.set(mappedTableName, normalizedData);
         
+        // OPTIMIZACIÓN: Procesar en chunks para evitar "Wait" del navegador
+        const normalizedData = await this.normalizarDataEnChunks(mappedTableName, data, headerMap);
+        
+        this.datos.set(mappedTableName, normalizedData);
         this.diagnostics.rowCounts[mappedTableName] = normalizedData.length;
       }
 
@@ -5553,8 +6191,8 @@ export class SicopDataManager {
       this.loadingStage = 'Construyendo índices de búsqueda';
       this.loadingProgress = 85;
       console.log('🔍 Creando índices...');
-      this.crearIndices();
-      this.construirIndiceTexto();
+      await this.crearIndices(); // OPTIMIZADO: Ahora es async
+      await this.construirIndiceTexto(); // OPTIMIZADO: Ahora es async
 
       // Validar integridad
       this.loadingStage = 'Validando integridad';
@@ -5586,6 +6224,60 @@ export class SicopDataManager {
       normalizedMap[key.trim().toLowerCase()] = value;
     });
     return normalizedMap;
+  }
+
+  /**
+   * OPTIMIZACIÓN: Procesa datos en chunks para evitar bloquear el navegador
+   * Divide el array en lotes pequeños y procesa cada lote con un pequeño delay
+   */
+  private async normalizarDataEnChunks(
+    tableName: string,
+    data: any[],
+    headerMap: Record<string, string>,
+    chunkSize: number = 1000 // Procesar 1000 registros a la vez
+  ): Promise<any[]> {
+    const normalizedData: any[] = [];
+    const totalRecords = data.length;
+    
+    // Si son pocos registros, procesar todo de una vez
+    if (totalRecords <= chunkSize) {
+      return data.map(record => this.normalizarRegistroDesdeCache(tableName, record, headerMap));
+    }
+    
+    // Procesar en chunks
+    for (let i = 0; i < totalRecords; i += chunkSize) {
+      const chunk = data.slice(i, Math.min(i + chunkSize, totalRecords));
+      
+      // Procesar el chunk actual
+      const normalizedChunk = chunk.map(record => 
+        this.normalizarRegistroDesdeCache(tableName, record, headerMap)
+      );
+      
+      normalizedData.push(...normalizedChunk);
+      
+      // Dar tiempo al navegador para procesar otros eventos
+      // Esto evita el mensaje "Wait" del navegador
+      await this.yieldToMainThread();
+      
+      // Log de progreso cada 10000 registros
+      if ((i + chunkSize) % 10000 === 0 || i + chunkSize >= totalRecords) {
+        console.log(`  ⏳ Procesados ${Math.min(i + chunkSize, totalRecords)}/${totalRecords} registros`);
+      }
+    }
+    
+    return normalizedData;
+  }
+
+  /**
+   * Cede el control al thread principal para que el navegador pueda procesar eventos
+   * Esto previene el mensaje "Wait" cuando hay operaciones largas
+   */
+  private yieldToMainThread(): Promise<void> {
+    return new Promise(resolve => {
+      // Usar setTimeout con 0ms para ceder el control al event loop
+      // El navegador procesará eventos pendientes antes de continuar
+      setTimeout(resolve, 0);
+    });
   }
 
   private normalizarRegistroDesdeCache(

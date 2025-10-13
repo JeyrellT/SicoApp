@@ -238,20 +238,29 @@
 
 .header-card {
   position: relative;
-  background: var(--explorer-glass);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--explorer-glass-border);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 24px;
-  padding: 32px;
+  padding: 0;
   margin-bottom: 28px;
-  box-shadow: var(--explorer-shadow);
-  display: flex;
-  gap: 24px;
-  align-items: stretch;
-  flex-wrap: wrap;
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.3);
+  overflow: hidden;
   z-index: 10;
   isolation: isolate;
   animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.header-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(0, 0, 0, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 1;
 }
 
 @keyframes fadeInUp {
@@ -265,9 +274,87 @@
   }
 }
 
+/* Header Banner */
+.header-banner {
+  position: relative;
+  padding: 32px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 20px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: white;
+  align-self: flex-start;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.header-main-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  line-height: 1.3;
+}
+
+.header-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.header-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.meta-label {
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.meta-value {
+  font-weight: 800;
+  opacity: 1;
+}
+
+.meta-icon {
+  font-size: 16px;
+  opacity: 0.9;
+}
+
+/* Header Info Section */
 .header-info {
+  position: relative;
   flex: 2;
   min-width: 280px;
+  z-index: 2;
+  padding: 0 32px 32px 32px;
 }
 
 .header-title {
@@ -291,43 +378,71 @@
   gap: 10px;
 }
 
+/* Enhanced Chip Styles */
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  border: 1px solid rgba(102, 126, 234, 0.2);
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 12px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--explorer-primary);
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
   transition: var(--explorer-transition-fast);
+  position: relative;
 }
 
 .chip:hover {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+  background: rgba(255, 255, 255, 0.25);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.chip-status {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.9) 0%, rgba(5, 150, 105, 0.9) 100%);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.chip-procedure {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9) 0%, rgba(37, 99, 235, 0.9) 100%);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.chip-system {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.9) 0%, rgba(217, 119, 6, 0.9) 100%);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.chip-icon {
+  font-size: 14px;
+  opacity: 0.9;
 }
 
 .header-kpis {
   flex: 3;
   min-width: 400px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(5, 1fr); /* Exactamente 5 columnas iguales */
+  gap: 12px;
+  align-items: stretch; /* Asegurar misma altura */
 }
 
 .kpi-mini {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 16px;
+  padding: 14px 16px;
   background: white;
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid rgba(229, 231, 235, 0.6);
   transition: var(--explorer-transition-fast);
+  min-height: 85px; /* Altura mínima consistente */
+  justify-content: center; /* Centrar contenido verticalmente */
 }
 
 .kpi-mini:hover {
@@ -337,20 +452,24 @@
 }
 
 .kpi-mini-label {
-  font-size: 12px;
+  font-size: 11px;
   color: #6b7280;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  line-height: 1.3;
+  margin-bottom: 2px;
 }
 
 .kpi-mini-value {
-  font-size: 18px;
+  font-size: 16px; /* Tamaño reducido para mejor legibilidad */
   font-weight: 800;
   background: var(--explorer-bg-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  line-height: 1.2;
+  word-break: break-word; /* Evitar desbordamiento de números grandes */
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -634,7 +753,7 @@
   }
   
   .header-kpis {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(3, 1fr); /* 3 columnas en tablet */
   }
 }
 
@@ -668,7 +787,15 @@
   }
   
   .header-kpis {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr); /* 2 columnas en móvil grande */
+  }
+  
+  .kpi-mini {
+    min-height: 75px; /* Altura reducida en móvil */
+  }
+  
+  .kpi-mini-value {
+    font-size: 14px; /* Texto más pequeño en móvil */
   }
 }
 
@@ -682,11 +809,15 @@
   }
   
   .header-kpis {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr; /* 1 columna en móviles pequeños */
+  }
+  
+  .kpi-mini {
+    min-height: 70px;
   }
   
   .kpi-mini-value {
-    font-size: 16px;
+    font-size: 15px;
   }
   
   .kpi-enhanced-value {

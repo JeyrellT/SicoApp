@@ -1,9 +1,11 @@
 // ================================
-// CONTEXTO GLOBAL DE DATOS SICOP
+// CONTEXTO GLOBAL DE DATOS SICOP - REFACTORIZADO
 // ================================
 // Provee acceso centralizado a los datos y servicios
+// Usa useDataManager hook para gestión de estado simplificada
 
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useDataManager, type DataManagerHook } from '../hooks/useDataManager';
 import { dataManager } from '../data/DataManager';
 import { filterService } from '../services/FilterService';
 import { reportService } from '../services/ReportService';
@@ -21,25 +23,28 @@ import {
 // ================================
 
 interface SicopContextValue {
-  // Estado de carga
-  isLoaded: boolean;
-  isLoading: boolean;
-  loadingProgress: number;
-  loadingStage: string;
-  error: string | null;
-
-  // Datos básicos
-  estadisticasGenerales: any;
+  // Del hook de DataManager
+  status: DataManagerHook['status'];
+  progress: number;
+  stage: string;
+  loadingDetails: DataManagerHook['loadingDetails'];
+  estadisticas: DataManagerHook['estadisticas'];
   instituciones: InstitucionRegistrada[];
   proveedores: Proveedor[];
   keywordsComunes: string[];
-
+  isIdle: boolean;
+  isCheckingCache: boolean;
+  isLoading: boolean;
+  isLoaded: boolean;
+  hasError: boolean;
+  load: () => Promise<void>;
+  reset: () => void;
+  
   // Métricas avanzadas
   metricasAvanzadas: MetricasAvanzadas | null;
   alertasActivas: AlertaInteligente[];
 
   // Métodos principales
-  cargarDatos: () => Promise<void>;
   buscarOportunidades: (filtros: FiltroBusqueda) => ResultadoBusqueda;
   analizarCompetencia: (idProveedor: string, sectores?: string[]) => any;
   generarReporte: (parametros: any) => any;
@@ -60,6 +65,13 @@ interface SicopContextValue {
   // Utilidades
   limpiarError: () => void;
   obtenerDatos: (tabla: string) => any[];
+  
+  // Compatibilidad con API anterior
+  estadisticasGenerales: any;
+  loadingProgress: number;
+  loadingStage: string;
+  error: string | null;
+  cargarDatos: () => Promise<void>;
 }
 
 const SicopContext = createContext<SicopContextValue | undefined>(undefined);
@@ -74,18 +86,13 @@ interface SicopProviderProps {
 
 export const SicopProvider: React.FC<SicopProviderProps> = ({ children }) => {
   // ================================
-  // ESTADO LOCAL
+  // USAR EL HOOK DE DATA MANAGER
   // ================================
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingStage, setLoadingStage] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  
-  const [estadisticasGenerales, setEstadisticasGenerales] = useState<any>({});
-  const [instituciones, setInstituciones] = useState<InstitucionRegistrada[]>([]);
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
-  const [keywordsComunes, setKeywordsComunes] = useState<string[]>([]);
+  const dataManagerHook = useDataManager();
+
+  // ================================
+  // ESTADO LOCAL (solo para métricas)
+  // ================================
   const [metricasAvanzadas, setMetricasAvanzadas] = useState<MetricasAvanzadas | null>(null);
   const [alertasActivas, setAlertasActivas] = useState<AlertaInteligente[]>([]);
 
@@ -94,305 +101,221 @@ export const SicopProvider: React.FC<SicopProviderProps> = ({ children }) => {
   // ================================
 
   useEffect(() => {
-    // Verificar si los datos ya están cargados
-    if (dataManager.isDataLoaded) {
-      actualizarEstadoPostCarga();
-    }
-  }, []);
-
-  useEffect(() => {
     // Cargar métricas cuando los datos estén listos
-    if (isLoaded && !metricasAvanzadas) {
+    if (dataManagerHook.isLoaded && !metricasAvanzadas) {
+      console.log('📊 Datos cargados, actualizando métricas...');
       actualizarMetricas();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, metricasAvanzadas]);
+  }, [dataManagerHook.isLoaded]); // Solo depende de isLoaded
 
   useEffect(() => {
-    // Monitorear progreso de carga
-    if (isLoading) {
-      const interval = setInterval(() => {
-        setLoadingProgress(dataManager.progress);
-        setLoadingStage(dataManager.stage);
-        
-        if (dataManager.isDataLoaded) {
-          actualizarEstadoPostCarga();
-          clearInterval(interval);
-        }
-      }, 500);
+    // Listener para actualizaciones manuales de categorías
+    const handleManualCategoriesUpdate = () => {
+      console.log('🔄 Categorías manuales actualizadas, invalidando caché...');
+      dataManager.invalidarCacheSectores();
+      
+      // Re-calcular métricas si están cargadas
+      if (dataManagerHook.isLoaded) {
+        actualizarMetricas();
+      }
+    };
 
-      return () => clearInterval(interval);
-    }
-  }, [isLoading]);
+    window.addEventListener('manualCategoriesUpdated', handleManualCategoriesUpdate);
+    
+    return () => {
+      window.removeEventListener('manualCategoriesUpdated', handleManualCategoriesUpdate);
+    };
+  }, [dataManagerHook.isLoaded]);
 
   // ================================
   // MÉTODOS PRINCIPALES
   // ================================
 
-  const cargarDatos = async (): Promise<void> => {
-    if (isLoaded || isLoading) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      setLoadingProgress(0);
-
-      console.log('🚀 Iniciando carga desde contexto...');
-      
-      // Determinar la ruta de los CSV
-      const rutaCSV = process.env.NODE_ENV === 'development' 
-        ? '/cleaned'  // En desarrollo, desde public/cleaned
-        : '/cleaned'; // En producción, desde la carpeta pública
-      
-      await dataManager.cargarDatos(rutaCSV);
-      
-      actualizarEstadoPostCarga();
-      
-    } catch (err) {
-      const mensaje = err instanceof Error ? err.message : 'Error desconocido';
-      console.error('💥 Error en carga de datos:', mensaje);
-      setError(`Error cargando datos: ${mensaje}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const actualizarEstadoPostCarga = (): void => {
-    try {
-      setIsLoaded(true);
-      setLoadingProgress(100);
-      
-      // Cargar datos auxiliares
-      const stats = dataManager.obtenerEstadisticasGenerales();
-      const instits = filterService.obtenerInstituciones();
-      const provs = filterService.obtenerProveedores();
-      const keywords = filterService.obtenerKeywordsComunes(50);
-      
-      console.log('🔍 SicopContext - Datos cargados:', {
-        estadisticas: stats,
-        instituciones: instits?.length || 0,
-        institucionesSample: instits?.slice(0, 2),
-        institucionesFields: instits?.[0] ? Object.keys(instits[0]) : [],
-        proveedores: provs?.length || 0,
-        keywords: keywords?.length || 0,
-        keywordsSample: keywords?.slice(0, 5)
-      });
-      
-      setEstadisticasGenerales(stats);
-      setInstituciones(instits);
-      setProveedores(provs);
-      setKeywordsComunes(keywords);
-      
-      console.log('✅ Estado actualizado post-carga');
-      
-    } catch (err) {
-      console.error('⚠️ Error actualizando estado:', err);
-      setError('Error procesando datos cargados');
-    }
-  };
-
   const buscarOportunidades = (filtros: FiltroBusqueda): ResultadoBusqueda => {
-    if (!isLoaded) {
-      throw new Error('Datos no cargados. Llame a cargarDatos() primero.');
+    if (!dataManagerHook.isLoaded) {
+      throw new Error('Datos no cargados. Llame a load() primero.');
     }
     
     try {
       return dataManager.buscarOportunidades(filtros);
     } catch (err) {
-      const mensaje = err instanceof Error ? err.message : 'Error en búsqueda';
-      setError(mensaje);
+      console.error('Error buscando oportunidades:', err);
       throw err;
     }
   };
 
-  const analizarCompetencia = (idProveedor: string, sectores?: string[]): any => {
-    if (!isLoaded) {
+  const analizarCompetencia = (idProveedor: string, sectores?: string[]) => {
+    if (!dataManagerHook.isLoaded) {
       throw new Error('Datos no cargados.');
     }
     
     try {
       return dataManager.analizarCompetencia(idProveedor, sectores);
     } catch (err) {
-      const mensaje = err instanceof Error ? err.message : 'Error en análisis';
-      setError(mensaje);
+      console.error('Error analizando competencia:', err);
       throw err;
     }
   };
 
-  const generarReporte = (parametros: any): any => {
-    if (!isLoaded) {
+  const generarReporte = (parametros: any) => {
+    if (!dataManagerHook.isLoaded) {
       throw new Error('Datos no cargados.');
     }
     
     try {
       return reportService.generarReporteEjecutivo(parametros);
     } catch (err) {
-      const mensaje = err instanceof Error ? err.message : 'Error generando reporte';
-      setError(mensaje);
+      console.error('Error generando reporte:', err);
       throw err;
     }
   };
 
-  // ================================
-  // MÉTRICAS AVANZADAS
-  // ================================
-
-  const actualizarMetricas = async (): Promise<void> => {
-    if (!isLoaded) return;
-    
-    try {
-      const carteles = dataManager.obtenerDatos('DetalleCarteles') as DetalleCartel[];
-      const contratos = dataManager.obtenerDatos('Contratos') as any[];
-      const sanciones = dataManager.obtenerDatos('SancionProveedores') || [];
-      const participacion = dataManager.obtenerDatos('Ofertas') || [];
-      
-      const metricas = metricsService.calcularMetricasCompletas(
-        carteles, 
-        contratos, 
-        proveedores, 
-        instituciones, 
-        sanciones, 
-        participacion
-      );
-      
-      setMetricasAvanzadas(metricas);
-      setAlertasActivas(metricas.alertas);
-    } catch (err) {
-      console.error('Error actualizando métricas:', err);
-    }
-  };
-
-  const obtenerTendenciasTempo = (dias: number = 30): any[] => {
-    if (!isLoaded) return [];
-    
-    try {
-      const carteles = dataManager.obtenerDatos('DetalleCarteles') as DetalleCartel[];
-      const contratos = dataManager.obtenerDatos('Contratos') as any[];
-      return metricsService.analizarTendenciasTempo(carteles, contratos, dias);
-    } catch (err) {
-      console.error('Error obteniendo tendencias:', err);
-      return [];
-    }
-  };
-
-  // ================================
-  // FILTROS ESPECIALIZADOS
-  // ================================
-
   const buscarNichosPocaCompetencia = (parametros: any): DetalleCartel[] => {
-    if (!isLoaded) return [];
+    if (!dataManagerHook.isLoaded) {
+      throw new Error('Datos no cargados.');
+    }
     
     try {
       return filterService.buscarNichosPocaCompetencia(parametros);
     } catch (err) {
       console.error('Error buscando nichos:', err);
-      return [];
+      throw err;
     }
   };
 
-  const analizarPatronesInstitucion = (codigoInstitucion: string, parametros: any): any => {
-    if (!isLoaded) return {};
+  const analizarPatronesInstitucion = (codigoInstitucion: string, parametros: any) => {
+    if (!dataManagerHook.isLoaded) {
+      throw new Error('Datos no cargados.');
+    }
     
     try {
       return filterService.analizarPatronesInstitucion(codigoInstitucion, parametros);
     } catch (err) {
       console.error('Error analizando patrones:', err);
-      return {};
+      throw err;
     }
   };
 
-  const analizarEstacionalidad = (parametros: any): any => {
-    if (!isLoaded) return {};
+  const analizarEstacionalidad = (parametros: any) => {
+    if (!dataManagerHook.isLoaded) {
+      throw new Error('Datos no cargados.');
+    }
     
     try {
       return filterService.analizarEstacionalidad(parametros);
     } catch (err) {
       console.error('Error analizando estacionalidad:', err);
-      return {};
+      throw err;
     }
   };
 
-  // ================================
-  // BÚSQUEDA POR NÚMERO SICOP
-  // ================================
-  const buscarCartelPorNumero = (numero: string): any | null => {
-    if (!isLoaded) return null;
+  const buscarCartelPorNumero = (numero: string) => {
+    if (!dataManagerHook.isLoaded) return null;
+    
     try {
       return dataManager.obtenerDossierCartel(numero);
     } catch (err) {
-      console.error('Error buscando cartel por número:', err);
+      console.error('Error buscando cartel:', err);
       return null;
     }
   };
 
-  const sugerirCarteles = (query: string, limit: number = 8) => {
+  const sugerirCarteles = (query: string, limit: number = 10) => {
     type S = { numeroCartel: string; nombreCartel: string; codigoInstitucion: string };
-    if (!isLoaded) return [] as S[];
-    const qRaw = String(query || '').trim();
-    if (!qRaw) return [] as S[];
-    const normNro = (v: any) => String(v ?? '').trim().replace(/\s+/g, '').replace(/[^0-9A-Za-z-]/g, '').toLowerCase();
-    const generarVariantes = (raw: string): string[] => {
-      const s = normNro(raw);
-      if (!s) return [];
-      const vars = new Set<string>();
-      vars.add(s);
-      vars.add(s.replace(/-/g, ''));
-      vars.add(s.replace(/\b0+(\d+)/g, '$1'));
-      const digits = s.replace(/\D+/g, '');
-      if (digits.length >= 4) vars.add(digits);
-      return Array.from(vars).filter(Boolean);
-    };
-    const qVars = new Set(generarVariantes(qRaw));
-    const qDigits = qRaw.replace(/\D+/g, '');
-    const qPref11 = qDigits.length >= 5 ? qDigits.slice(0, Math.min(11, qDigits.length)) : '';
-    const match = (num: string, nombre?: string) => {
-      const numVars = new Set(generarVariantes(num));
-      for (const v of numVars) { if (qVars.has(v)) return true; }
-      if (qPref11) {
-        const digits = num.replace(/\D+/g, '');
-        if (digits.startsWith(qPref11)) return true;
-      }
-      if (nombre) {
-        const n = String(nombre).toLowerCase();
-        if (n.includes(qRaw.toLowerCase())) return true;
-      }
-      // Partial containment ignoring dashes
-      const numFlat = num.toLowerCase().replace(/-/g, '');
-      const qFlat = qRaw.toLowerCase().replace(/-/g, '');
-      if (qFlat.length >= 4 && numFlat.includes(qFlat)) return true;
-      return false;
-    };
-
-    const carteles = dataManager.obtenerDatos('DetalleCarteles') as any[];
-    const candidates = carteles.filter(c => match(String(c.numeroCartel || ''), String(c.nombreCartel || c.descripcionCartel || '')));
-    const ranked = candidates.sort((a, b) => {
-      const aNum = String(a.numeroCartel || '');
-      const bNum = String(b.numeroCartel || '');
-      // Prefer longer exact/prefix matches
-      const score = (num: string) => {
-        const digits = num.replace(/\D+/g, '');
-        let s = 0;
-        if (qPref11 && digits.startsWith(qPref11)) s += qPref11.length * 2;
-        if (generarVariantes(num).some(v => qVars.has(v))) s += 50;
-        s += Math.min(digits.length, 20);
-        return s;
+    if (!dataManagerHook.isLoaded) return [] as S[];
+    
+    try {
+      const qRaw = String(query || '').trim();
+      if (!qRaw) return [] as S[];
+      
+      const normNro = (v: any) => String(v ?? '').trim().replace(/\s+/g, '').replace(/[^0-9A-Za-z-]/g, '').toLowerCase();
+      const generarVariantes = (raw: string): string[] => {
+        const s = normNro(raw);
+        if (!s) return [];
+        const vars = new Set<string>();
+        vars.add(s);
+        vars.add(s.replace(/-/g, ''));
+        vars.add(s.replace(/\b0+(\d+)/g, '$1'));
+        const digits = s.replace(/\D+/g, '');
+        if (digits.length >= 4) vars.add(digits);
+        return Array.from(vars);
       };
-      return score(bNum) - score(aNum);
-    });
-
-    return ranked.slice(0, limit).map(c => ({ numeroCartel: c.numeroCartel, nombreCartel: c.nombreCartel, codigoInstitucion: c.codigoInstitucion }));
+      
+      const queryVariants = generarVariantes(qRaw);
+      const carteles = dataManager.obtenerDatos('DetalleCarteles') || [];
+      const matches: S[] = [];
+      const seen = new Set<string>();
+      
+      for (const c of carteles) {
+        if (matches.length >= limit) break;
+        const nroC = normNro(c.NumeroCartel);
+        if (seen.has(nroC)) continue;
+        
+        if (queryVariants.some(v => nroC.includes(v) || v.includes(nroC))) {
+          matches.push({
+            numeroCartel: c.NumeroCartel,
+            nombreCartel: c.Descripcion || '',
+            codigoInstitucion: c.CodigoInstitucion || ''
+          });
+          seen.add(nroC);
+        }
+      }
+      
+      return matches;
+    } catch (err) {
+      console.error('Error sugiriendo carteles:', err);
+      return [] as S[];
+    }
   };
 
-  // ================================
-  // UTILIDADES
-  // ================================
+  const actualizarMetricas = async (): Promise<void> => {
+    if (!dataManagerHook.isLoaded) return;
 
-  const limpiarError = (): void => {
-    setError(null);
+    try {
+      console.log('🔄 Actualizando métricas avanzadas...');
+      
+      const carteles = dataManager.obtenerDatos('DetalleCarteles');
+      const contratos = dataManager.obtenerDatos('Contratos');
+      const sanciones = dataManager.obtenerDatos('SancionProveedores') || [];
+      const participacion = dataManager.obtenerDatos('Ofertas') || [];
+      
+      const metricas = metricsService.calcularMetricasCompletas(
+        carteles,
+        contratos,
+        dataManagerHook.proveedores,
+        dataManagerHook.instituciones,
+        sanciones,
+        participacion
+      );
+      
+      setMetricasAvanzadas(metricas);
+      setAlertasActivas(metricas.alertas);
+      
+      console.log('✅ Métricas actualizadas');
+    } catch (err) {
+      console.error('⚠️ Error actualizando métricas:', err);
+    }
+  };
+
+  const obtenerTendenciasTempo = (dias: number = 30) => {
+    if (!dataManagerHook.isLoaded) return [];
+    
+    try {
+      const carteles = dataManager.obtenerDatos('DetalleCarteles');
+      const contratos = dataManager.obtenerDatos('Contratos');
+      return metricsService.analizarTendenciasTempo(carteles, contratos, dias);
+    } catch (err) {
+      console.error('Error calculando tendencias:', err);
+      return [];
+    }
+  };
+
+  const limpiarError = () => {
+    dataManagerHook.reset();
   };
 
   const obtenerDatos = (tabla: string): any[] => {
-    if (!isLoaded) return [];
+    if (!dataManagerHook.isLoaded) return [];
     return dataManager.obtenerDatos(tabla);
   };
 
@@ -401,43 +324,35 @@ export const SicopProvider: React.FC<SicopProviderProps> = ({ children }) => {
   // ================================
 
   const contextValue: SicopContextValue = {
-    // Estado
-    isLoaded,
-    isLoading,
-    loadingProgress,
-  loadingStage,
-    error,
-
-    // Datos
-    estadisticasGenerales,
-    instituciones,
-    proveedores,
-    keywordsComunes,
-
-    // Métricas avanzadas
+    // Del hook de DataManager
+    ...dataManagerHook,
+    
+    // Métricas locales
     metricasAvanzadas,
     alertasActivas,
-
-    // Métodos principales
-    cargarDatos,
+    
+    // Métodos de servicios
     buscarOportunidades,
     analizarCompetencia,
     generarReporte,
-
-    // Filtros especializados
     buscarNichosPocaCompetencia,
     analizarPatronesInstitucion,
     analizarEstacionalidad,
-  buscarCartelPorNumero,
-  sugerirCarteles,
-
-    // Métricas y análisis
+    buscarCartelPorNumero,
+    sugerirCarteles,
     actualizarMetricas,
     obtenerTendenciasTempo,
-
-    // Utilidades
     limpiarError,
-    obtenerDatos
+    obtenerDatos,
+    
+    // Compatibilidad con API anterior
+    estadisticasGenerales: dataManagerHook.estadisticas || {},
+    isLoading: dataManagerHook.isLoading,
+    isLoaded: dataManagerHook.isLoaded,
+    loadingProgress: dataManagerHook.progress,
+    loadingStage: dataManagerHook.stage,
+    error: dataManagerHook.error?.message || null,
+    cargarDatos: dataManagerHook.load
   };
 
   return (
@@ -448,33 +363,15 @@ export const SicopProvider: React.FC<SicopProviderProps> = ({ children }) => {
 };
 
 // ================================
-// HOOK PERSONALIZADO
+// HOOK PARA USAR EL CONTEXTO
 // ================================
 
 export const useSicop = (): SicopContextValue => {
   const context = useContext(SicopContext);
   
   if (context === undefined) {
-    throw new Error('useSicop debe ser usado dentro de un SicopProvider');
+    throw new Error('useSicop debe usarse dentro de SicopProvider');
   }
   
   return context;
-};
-
-// ================================
-// HOOK PARA CARGAR DATOS AUTOMÁTICAMENTE
-// ================================
-
-export const useSicopAutoLoad = (autoLoad: boolean = true): SicopContextValue => {
-  const sicop = useSicop();
-  
-  useEffect(() => {
-    if (autoLoad && !sicop.isLoaded && !sicop.isLoading) {
-      sicop.cargarDatos().catch(err => {
-        console.error('Error en carga automática:', err);
-      });
-    }
-  }, [autoLoad, sicop.isLoaded, sicop.isLoading, sicop]);
-  
-  return sicop;
 };

@@ -18,7 +18,16 @@ import {
   Calendar, Clock, Briefcase
 } from 'lucide-react';
 import moment from 'moment';
-import { formatCRCCompact, withTooltip } from '../utils/format';
+import { formatCurrency } from '../utils/formatting';
+
+// Helper functions migradas de format.ts
+const formatCRCCompact = (n: number | null | undefined): string => {
+  return formatCurrency(n, { compact: true });
+};
+
+const withTooltip = (value: string, full: number | null | undefined): { text: string; title: string } => {
+  return { text: value, title: formatCurrency(full) };
+};
 
 // ================================
 // INTERFACES Y TIPOS
@@ -76,61 +85,111 @@ const KPICard: React.FC<KPICardProps> = ({
   <div 
     onClick={onClick}
     style={{
-      background: 'white',
-      borderRadius: '16px',
-      padding: '24px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-      border: '1px solid #e9ecef',
+      background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 100%)',
+      backdropFilter: 'blur(20px) saturate(180%)',
+      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+      borderRadius: '24px',
+      padding: '32px',
+      boxShadow: `
+        0 8px 32px rgba(0,0,0,0.1),
+        0 0 0 1px rgba(255,255,255,0.2) inset,
+        0 20px 60px rgba(102, 126, 234, 0.15)
+      `,
+      border: '2px solid rgba(255,255,255,0.3)',
       cursor: onClick ? 'pointer' : 'default',
-      transition: 'transform 0.2s ease',
-      position: 'relative'
+      transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+      position: 'relative',
+      overflow: 'hidden',
+      transform: 'translateZ(0) rotateX(0deg) rotateY(0deg)',
+      transformStyle: 'preserve-3d',
+      perspective: '1500px',
+      willChange: 'transform, box-shadow',
+      animation: 'card-float 6s ease-in-out infinite'
     }}
     onMouseEnter={(e) => {
-      if (onClick) e.currentTarget.style.transform = 'translateY(-2px)';
+      e.currentTarget.style.transform = 'translateY(-20px) translateZ(30px) rotateX(5deg) scale(1.05)';
+      e.currentTarget.style.boxShadow = `
+        0 25px 70px rgba(0,0,0,0.25),
+        0 0 0 2px rgba(255,255,255,0.4) inset,
+        0 35px 100px ${color}40
+      `;
     }}
     onMouseLeave={(e) => {
-      if (onClick) e.currentTarget.style.transform = 'translateY(0)';
+      e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0deg) scale(1)';
+      e.currentTarget.style.boxShadow = `
+        0 8px 32px rgba(0,0,0,0.1),
+        0 0 0 1px rgba(255,255,255,0.2) inset,
+        0 20px 60px rgba(102, 126, 234, 0.15)
+      `;
     }}
   >
+    {/* Efecto shimmer de fondo */}
+    <div style={{
+      position: 'absolute',
+      top: '-50%',
+      left: '-50%',
+      width: '200%',
+      height: '200%',
+      background: 'linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%)',
+      backgroundSize: '500px 500px',
+      animation: 'shimmer 4s linear infinite',
+      pointerEvents: 'none',
+      opacity: 0.6
+    }} />
+
     {badge && (
       <div style={{
         position: 'absolute',
-        top: '12px',
-        right: '12px',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        top: '16px',
+        right: '16px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
         color: 'white',
-        padding: '4px 8px',
-        borderRadius: '8px',
-        fontSize: '10px',
-        fontWeight: 600
+        padding: '6px 12px',
+        borderRadius: '12px',
+        fontSize: '11px',
+        fontWeight: 700,
+        boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+        animation: 'wiggle 2s ease-in-out infinite',
+        letterSpacing: '0.05em',
+        transform: 'translateZ(10px)'
       }}>
         {badge}
       </div>
     )}
     
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-      <div style={{ flex: 1 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+      <div style={{ flex: 1, transform: 'translateZ(5px)' }}>
         <h3 style={{ 
-          margin: '0 0 8px 0', 
-          fontSize: '14px', 
-          fontWeight: 500, 
-          color: '#6c757d' 
+          margin: '0 0 12px 0', 
+          fontSize: '13px', 
+          fontWeight: 600, 
+          color: '#6c757d',
+          letterSpacing: '0.03em',
+          textTransform: 'uppercase'
         }}>
           {title}
         </h3>
         <div style={{ 
-          fontSize: '28px', 
-          fontWeight: 700, 
+          fontSize: '38px', 
+          fontWeight: 800, 
           color: '#2c3e50',
-          marginBottom: '4px'
+          marginBottom: '8px',
+          lineHeight: 1.1,
+          letterSpacing: '-0.02em',
+          background: `linear-gradient(135deg, #2c3e50 0%, ${color} 100%)`,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text'
         }}>
           {typeof value === 'number' ? value.toLocaleString() : value}
         </div>
         {subtitle && (
           <p style={{ 
-            margin: 0, 
-            fontSize: '12px', 
-            color: '#adb5bd' 
+            margin: '0 0 12px 0', 
+            fontSize: '13px', 
+            color: '#adb5bd',
+            fontWeight: 500,
+            letterSpacing: '0.01em'
           }}>
             {subtitle}
           </p>
@@ -139,51 +198,127 @@ const KPICard: React.FC<KPICardProps> = ({
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
-            marginTop: '8px',
-            fontSize: '12px',
-            color: trend === 'up' ? '#28a745' : trend === 'down' ? '#dc3545' : '#6c757d'
+            marginTop: '12px',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: trend === 'up' ? '#28a745' : trend === 'down' ? '#dc3545' : '#6c757d',
+            padding: '6px 12px',
+            background: trend === 'up' ? 'rgba(40, 167, 69, 0.1)' : trend === 'down' ? 'rgba(220, 53, 69, 0.1)' : 'rgba(108, 117, 125, 0.1)',
+            borderRadius: '10px',
+            width: 'fit-content',
+            gap: '6px'
           }}>
-            {trend === 'up' ? <TrendingUp size={14} /> : 
-             trend === 'down' ? <TrendingDown size={14} /> : 
-             <Activity size={14} />}
-            <span style={{ marginLeft: '4px' }}>{trendValue}</span>
+            {trend === 'up' ? <TrendingUp size={16} /> : 
+             trend === 'down' ? <TrendingDown size={16} /> : 
+             <Activity size={16} />}
+            <span>{trendValue}</span>
           </div>
         )}
       </div>
-      <div style={{ 
-        width: '48px', 
-        height: '48px', 
-        borderRadius: '12px', 
-        background: `linear-gradient(135deg, ${color}15 0%, ${color}25 100%)`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: color
-      }}>
-        {icon}
+      <div 
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateZ(20px) scale(1.2) rotateZ(10deg)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateZ(10px) scale(1) rotateZ(0deg)';
+        }}
+        style={{ 
+          width: '72px', 
+          height: '72px', 
+          borderRadius: '20px', 
+          background: `linear-gradient(135deg, ${color}15 0%, ${color}35 100%)`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: color,
+          boxShadow: `0 8px 24px ${color}30, 0 0 0 1px ${color}20 inset`,
+          transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          transform: 'translateZ(10px)',
+          willChange: 'transform',
+          animation: 'glow-pulse 3s ease-in-out infinite'
+        }}>
+        <div style={{ transform: 'scale(1.3)' }}>
+          {icon}
+        </div>
       </div>
     </div>
   </div>
 );
 
 const MetricaTemporalChart: React.FC<MetricaTemporalProps> = ({ data, title, height = 300 }) => (
-  <div style={{
-    background: 'white',
-    borderRadius: '16px',
-    padding: '24px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-    border: '1px solid #e9ecef'
+  <div 
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
+      e.currentTarget.style.boxShadow = `
+        0 20px 60px rgba(0,0,0,0.18),
+        0 0 0 2px rgba(255,255,255,0.35) inset,
+        0 30px 80px rgba(102, 126, 234, 0.22)
+      `;
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0deg)';
+      e.currentTarget.style.boxShadow = `
+        0 12px 40px rgba(0,0,0,0.12),
+        0 0 0 1px rgba(255,255,255,0.25) inset,
+        0 25px 70px rgba(102, 126, 234, 0.18)
+      `;
+    }}
+    style={{
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.88) 100%)',
+    backdropFilter: 'blur(25px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+    borderRadius: '28px',
+    padding: '32px',
+    boxShadow: `
+      0 12px 40px rgba(0,0,0,0.12),
+      0 0 0 1px rgba(255,255,255,0.25) inset,
+      0 25px 70px rgba(102, 126, 234, 0.18)
+    `,
+    border: '2px solid rgba(255,255,255,0.35)',
+    position: 'relative',
+    overflow: 'hidden',
+    transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+    transform: 'translateZ(0)',
+    transformStyle: 'preserve-3d',
+    willChange: 'transform, box-shadow'
   }}>
+    {/* Efecto shimmer */}
+    <div style={{
+      position: 'absolute',
+      top: '-50%',
+      left: '-50%',
+      width: '200%',
+      height: '200%',
+      background: 'linear-gradient(45deg, transparent 30%, rgba(102, 126, 234, 0.08) 50%, transparent 70%)',
+      backgroundSize: '500px 500px',
+      animation: 'shimmer 6s linear infinite',
+      pointerEvents: 'none'
+    }} />
+    
     <h3 style={{ 
       margin: '0 0 20px 0', 
       fontSize: '18px', 
-      fontWeight: 600,
+      fontWeight: 700,
       display: 'flex',
       alignItems: 'center',
-      gap: '8px'
+      gap: '8px',
+      position: 'relative',
+      zIndex: 1,
+      letterSpacing: '-0.01em'
     }}>
-      <Calendar size={20} />
-      {title}
+      <Calendar size={20} style={{ 
+        color: '#667eea',
+        filter: 'drop-shadow(0 2px 8px rgba(102, 126, 234, 0.4))',
+        animation: 'glow-pulse 2.5s ease-in-out infinite'
+      }} />
+      <span style={{
+        background: 'linear-gradient(135deg, #2c3e50 0%, #667eea 100%)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}>
+        {title}
+      </span>
     </h3>
     
     <ResponsiveContainer width="100%" height={height}>
@@ -210,52 +345,109 @@ const MetricaTemporalChart: React.FC<MetricaTemporalProps> = ({ data, title, hei
 );
 
 const SectorCard: React.FC<{ sector: any; index: number }> = ({ sector, index }) => (
-  <div style={{
-    background: index < 3 ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%)' : 'white',
-    border: `2px solid ${index < 3 ? '#667eea' : '#e9ecef'}`,
-    borderRadius: '12px',
-    padding: '16px',
-    marginBottom: '12px',
-    transition: 'transform 0.2s ease'
-  }}
-  onMouseEnter={(e) => {
-    e.currentTarget.style.transform = 'translateY(-2px)';
-  }}
-  onMouseLeave={(e) => {
-    e.currentTarget.style.transform = 'translateY(0)';
+  <div 
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'translateY(-6px) translateZ(10px) rotateX(3deg) scale(1.02)';
+      e.currentTarget.style.boxShadow = index < 3 
+        ? '0 12px 35px rgba(102, 126, 234, 0.3), 0 0 0 2px rgba(102, 126, 234, 0.4) inset'
+        : '0 8px 25px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.3) inset';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0deg) scale(1)';
+      e.currentTarget.style.boxShadow = index < 3 
+        ? '0 6px 20px rgba(102, 126, 234, 0.2)'
+        : '0 4px 12px rgba(0,0,0,0.08)';
+    }}
+    style={{
+    background: index < 3 
+      ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.12) 50%, rgba(240, 147, 251, 0.08) 100%)' 
+      : 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.88) 100%)',
+    backdropFilter: 'blur(15px) saturate(160%)',
+    WebkitBackdropFilter: 'blur(15px) saturate(160%)',
+    border: index < 3 
+      ? '2px solid rgba(102, 126, 234, 0.4)' 
+      : '2px solid rgba(233, 236, 239, 0.6)',
+    borderRadius: '16px',
+    padding: '20px',
+    marginBottom: '14px',
+    transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+    boxShadow: index < 3 
+      ? '0 6px 20px rgba(102, 126, 234, 0.2)'
+      : '0 4px 12px rgba(0,0,0,0.08)',
+    position: 'relative',
+    overflow: 'hidden',
+    transform: 'translateZ(0)',
+    transformStyle: 'preserve-3d',
+    willChange: 'transform, box-shadow'
   }}
   >
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            width: '16px',
-            height: '16px',
+    {/* Efecto shimmer para top 3 */}
+    {index < 3 && (
+      <div style={{
+        position: 'absolute',
+        top: '-50%',
+        left: '-50%',
+        width: '200%',
+        height: '200%',
+        background: 'linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.25) 50%, transparent 70%)',
+        backgroundSize: '400px 400px',
+        animation: 'shimmer 5s linear infinite',
+        pointerEvents: 'none'
+      }} />
+    )}
+    
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1 }}>
+        <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div 
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.15) rotateZ(5deg)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1) rotateZ(0deg)';
+            }}
+            style={{
+            width: '20px',
+            height: '20px',
             backgroundColor: sector.color,
-            borderRadius: '4px'
+            borderRadius: '6px',
+            boxShadow: `0 4px 12px ${sector.color}50`,
+            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            willChange: 'transform'
           }} />
           <span style={{ 
-            fontWeight: 600, 
-            fontSize: '14px',
-            color: '#2c3e50'
+            fontWeight: 700, 
+            fontSize: '13px',
+            color: '#2c3e50',
+            letterSpacing: '-0.01em'
           }}>
             {sector.name}
           </span>
           {index < 3 && (
-            <span style={{
-              background: '#667eea',
+            <span 
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.1) rotateZ(-3deg)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1) rotateZ(0deg)';
+              }}
+              style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               color: 'white',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontSize: '10px',
-              fontWeight: 600
+              padding: '4px 10px',
+              borderRadius: '8px',
+              fontSize: '11px',
+              fontWeight: 700,
+              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
+              letterSpacing: '0.03em',
+              transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              willChange: 'transform',
+              animation: index === 0 ? 'pulse 2s ease-in-out infinite' : 'none'
             }}>
               TOP {index + 1}
             </span>
           )}
-        </div>
-        
-        <div style={{ 
+        </div>        <div style={{ 
           display: 'grid', 
           gridTemplateColumns: '1fr 1fr 1fr', 
           gap: '8px', 
@@ -292,58 +484,137 @@ const SectorCard: React.FC<{ sector: any; index: number }> = ({ sector, index })
 );
 
 const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
-  <div style={{
-    background: 'white',
-    borderRadius: '16px',
-    padding: '24px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-    border: '1px solid #e9ecef'
+  <div 
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
+      e.currentTarget.style.boxShadow = `
+        0 20px 60px rgba(0,0,0,0.18),
+        0 0 0 2px rgba(255,255,255,0.35) inset,
+        0 30px 80px rgba(102, 126, 234, 0.22)
+      `;
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0deg)';
+      e.currentTarget.style.boxShadow = `
+        0 12px 40px rgba(0,0,0,0.12),
+        0 0 0 1px rgba(255,255,255,0.25) inset,
+        0 25px 70px rgba(102, 126, 234, 0.18)
+      `;
+    }}
+    style={{
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.88) 100%)',
+    backdropFilter: 'blur(25px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+    borderRadius: '28px',
+    padding: '32px',
+    boxShadow: `
+      0 12px 40px rgba(0,0,0,0.12),
+      0 0 0 1px rgba(255,255,255,0.25) inset,
+      0 25px 70px rgba(102, 126, 234, 0.18)
+    `,
+    border: '2px solid rgba(255,255,255,0.35)',
+    position: 'relative',
+    overflow: 'hidden',
+    transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+    transform: 'translateZ(0)',
+    transformStyle: 'preserve-3d',
+    willChange: 'transform, box-shadow'
   }}>
+    {/* Efecto shimmer */}
+    <div style={{
+      position: 'absolute',
+      top: '-50%',
+      right: '-50%',
+      width: '200%',
+      height: '200%',
+      background: 'linear-gradient(45deg, transparent 30%, rgba(255, 193, 7, 0.08) 50%, transparent 70%)',
+      backgroundSize: '500px 500px',
+      animation: 'shimmer 7s linear infinite',
+      pointerEvents: 'none'
+    }} />
+    
     <h3 style={{ 
       margin: '0 0 20px 0', 
       fontSize: '18px', 
-      fontWeight: 600,
+      fontWeight: 700,
       display: 'flex',
       alignItems: 'center',
-      gap: '8px'
+      gap: '8px',
+      position: 'relative',
+      zIndex: 1,
+      letterSpacing: '-0.01em'
     }}>
-      <AlertCircle size={20} />
-      Alertas Inteligentes ({alerts.length})
+      <AlertCircle size={20} style={{ 
+        color: '#f39c12',
+        filter: 'drop-shadow(0 2px 8px rgba(243, 156, 18, 0.4))',
+        animation: 'glow-pulse 2.5s ease-in-out infinite'
+      }} />
+      <span style={{
+        background: 'linear-gradient(135deg, #2c3e50 0%, #f39c12 100%)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}>
+        Alertas Inteligentes ({alerts.length})
+      </span>
     </h3>
     
-    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+    <div style={{ maxHeight: '320px', overflowY: 'auto', position: 'relative', zIndex: 1 }}>
       {alerts.map((alert) => (
-        <div key={alert.id} style={{
-          padding: '16px',
-          borderRadius: '12px',
-          marginBottom: '12px',
-          background: alert.type === 'error' ? '#fff5f5' :
-                     alert.type === 'warning' ? '#fffbf0' :
-                     alert.type === 'success' ? '#f0fff4' : '#f8f9fa',
-          border: `1px solid ${
-            alert.type === 'error' ? '#feb2b2' :
-            alert.type === 'warning' ? '#fbd38d' :
-            alert.type === 'success' ? '#9ae6b4' : '#e9ecef'
-          }`
+        <div 
+          key={alert.id}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateX(8px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateX(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+          }}
+          style={{
+          padding: '20px 22px',
+          borderRadius: '16px',
+          marginBottom: '14px',
+          background: alert.type === 'error' 
+            ? 'linear-gradient(135deg, rgba(220, 53, 69, 0.12) 0%, rgba(220, 53, 69, 0.08) 100%)' 
+            : alert.type === 'warning' 
+            ? 'linear-gradient(135deg, rgba(243, 156, 18, 0.12) 0%, rgba(243, 156, 18, 0.08) 100%)' 
+            : alert.type === 'success' 
+            ? 'linear-gradient(135deg, rgba(40, 167, 69, 0.12) 0%, rgba(40, 167, 69, 0.08) 100%)' 
+            : 'linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(102, 126, 234, 0.08) 100%)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          border: `2px solid ${
+            alert.type === 'error' ? 'rgba(220, 53, 69, 0.3)' :
+            alert.type === 'warning' ? 'rgba(243, 156, 18, 0.3)' :
+            alert.type === 'success' ? 'rgba(40, 167, 69, 0.3)' : 'rgba(102, 126, 234, 0.3)'
+          }`,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          willChange: 'transform, box-shadow'
         }}>
           <div style={{ 
-            fontWeight: 600, 
-            fontSize: '14px',
-            marginBottom: '4px',
-            color: '#2c3e50'
+            fontWeight: 700, 
+            fontSize: '13px',
+            marginBottom: '6px',
+            color: '#2c3e50',
+            letterSpacing: '-0.01em'
           }}>
             {alert.title}
           </div>
           <div style={{ 
-            fontSize: '13px', 
-            color: '#6c757d',
-            marginBottom: '8px'
+            fontSize: '12px', 
+            color: '#495057',
+            marginBottom: '10px',
+            lineHeight: 1.5,
+            fontWeight: 500
           }}>
             {alert.message}
           </div>
           <div style={{ 
-            fontSize: '11px', 
-            color: '#adb5bd'
+            fontSize: '12px', 
+            color: '#adb5bd',
+            fontWeight: 500
           }}>
             {moment(alert.timestamp).fromNow()}
           </div>
@@ -359,7 +630,7 @@ const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
 
 export const ModernDashboard: React.FC = () => {
   const { 
-    instituciones, 
+    // instituciones, // Unused - available if needed
     error,
     isLoaded
   } = useSicop();
@@ -419,23 +690,51 @@ export const ModernDashboard: React.FC = () => {
 
   // Escuchar cambios en configuración de categorías para forzar recálculo
   useEffect(() => {
-    const handleCategoryConfigUpdate = () => {
-      console.log('🔄 Configuración de categorías actualizada, forzando recálculo de dashboard');
-      // Limpiar filtros para forzar recálculo completo
-      setFiltersApplied({});
-      setSearchKeywords('');
-      // Forzar actualización del dashboard después de un breve delay
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+    const handleCategoryConfigUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('🔄 Configuración de categorías actualizada, forzando recálculo de dashboard', customEvent.detail);
+      
+      // Invalidar caché del DataManager para forzar recálculo
+      if (dataManager.invalidarCacheSectores) {
+        console.log('[ModernDashboard] 🗑️ Invalidando caché de sectores del DataManager...');
+        dataManager.invalidarCacheSectores();
+      }
+      
+      // Forzar recálculo del dashboard manteniendo filtros actuales
+      setFiltersApplied(prev => ({ ...prev })); // Trigger re-render sin cambiar filtros
+      
+      // Mostrar notificación al usuario
+      console.log('✅ Dashboard actualizado con las nuevas categorías');
+    };
+
+    const handleManualCategoryUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('🔄 Categoría manual actualizada, recalculando dashboard', customEvent.detail);
+      
+      // Invalidar caché del DataManager para forzar recálculo
+      if (dataManager.invalidarCacheSectores) {
+        console.log('[ModernDashboard] 🗑️ Invalidando caché de sectores del DataManager...');
+        dataManager.invalidarCacheSectores();
+      }
+      
+      // Forzar recálculo del dashboard
+      setFiltersApplied(prev => ({ ...prev })); // Trigger re-render
+      
+      // Mostrar notificación
+      const detail = customEvent.detail;
+      if (detail?.isNew) {
+        console.log(`✅ Nueva categoría "${detail.category?.nombre}" agregada. Dashboard actualizado.`);
+      } else {
+        console.log(`✅ Categoría actualizada. Dashboard recalculado.`);
+      }
     };
 
     window.addEventListener('categoryConfigurationUpdated', handleCategoryConfigUpdate);
-    window.addEventListener('manualCategoriesUpdated', handleCategoryConfigUpdate);
+    window.addEventListener('manualCategoriesUpdated', handleManualCategoryUpdate);
 
     return () => {
       window.removeEventListener('categoryConfigurationUpdated', handleCategoryConfigUpdate);
-      window.removeEventListener('manualCategoriesUpdated', handleCategoryConfigUpdate);
+      window.removeEventListener('manualCategoriesUpdated', handleManualCategoryUpdate);
     };
   }, []);
 
@@ -468,7 +767,8 @@ export const ModernDashboard: React.FC = () => {
     }));
   }, [dashboardData]);
 
-  const sectorOptions = useMemo(() => {
+  // Opciones de sectores disponibles para filtrado (futuro uso)
+  useMemo(() => {
     const list = (dashboardData.sector_analysis || []).map((s: any) => s.sector);
     return Array.from(new Set(list));
   }, [dashboardData]);
@@ -614,77 +914,228 @@ export const ModernDashboard: React.FC = () => {
   return (
     <div style={{ 
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      padding: '24px'
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+      padding: '70px 80px',
+      position: 'relative',
+      overflow: 'hidden',
+      perspective: '2000px',
+      maxWidth: '1800px',
+      margin: '0 auto'
     }}>
       
-      {/* Header Premium */}
+      {/* Partículas de fondo animadas */}
       <div style={{
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)',
-        backdropFilter: 'blur(10px)',
-        borderRadius: '20px',
-        padding: '32px',
-        marginBottom: '24px',
-        border: '1px solid rgba(255,255,255,0.2)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
+        pointerEvents: 'none',
+        zIndex: 0
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {[...Array(15)].map((_, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            width: `${Math.random() * 100 + 50}px`,
+            height: `${Math.random() * 100 + 50}px`,
+            background: `radial-gradient(circle, rgba(255,255,255,${Math.random() * 0.3 + 0.1}) 0%, transparent 70%)`,
+            borderRadius: '50%',
+            top: `${Math.random() * 100}%`,
+            left: `${Math.random() * 100}%`,
+            animation: `float${i % 3} ${Math.random() * 20 + 15}s ease-in-out infinite`,
+            filter: 'blur(25px)',
+            transform: `rotate(${Math.random() * 360}deg)`,
+            willChange: 'transform'
+          }} />
+        ))}
+      </div>
+
+      {/* Animaciones keyframes inyectadas */}
+      <style>{`
+        @keyframes float0 {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.3; }
+          25% { transform: translate(100px, -100px) rotate(90deg); opacity: 0.6; }
+          50% { transform: translate(200px, -50px) rotate(180deg); opacity: 0.4; }
+          75% { transform: translate(100px, 50px) rotate(270deg); opacity: 0.7; }
+        }
+        @keyframes float1 {
+          0%, 100% { transform: translate(0, 0) rotate(360deg); opacity: 0.4; }
+          33% { transform: translate(-150px, 120px) rotate(240deg); opacity: 0.7; }
+          66% { transform: translate(-50px, -100px) rotate(120deg); opacity: 0.5; }
+        }
+        @keyframes float2 {
+          0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 0.3; }
+          50% { transform: translate(120px, 150px) rotate(180deg) scale(1.3); opacity: 0.8; }
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.05); opacity: 0.9; }
+        }
+        @keyframes shimmer {
+          0% { background-position: -1000px 0; }
+          100% { background-position: 1000px 0; }
+        }
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(-3deg); }
+          50% { transform: rotate(3deg); }
+        }
+        @keyframes glow-pulse {
+          0%, 100% { filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.6)); }
+          50% { filter: drop-shadow(0 0 20px rgba(102, 126, 234, 1)); }
+        }
+        @keyframes card-float {
+          0%, 100% { transform: translateY(0px) rotateX(0deg); }
+          50% { transform: translateY(-8px) rotateX(2deg); }
+        }
+      `}</style>
+      
+      {/* Header Premium con Glassmorphism Avanzado */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.2) 100%)',
+        backdropFilter: 'blur(25px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+        borderRadius: '28px',
+        padding: '48px 56px',
+        marginBottom: '42px',
+        border: '2px solid rgba(255,255,255,0.3)',
+        boxShadow: `
+          0 8px 32px rgba(0,0,0,0.15),
+          0 0 0 1px rgba(255,255,255,0.1) inset,
+          0 20px 60px rgba(102, 126, 234, 0.2)
+        `,
+        position: 'relative',
+        overflow: 'hidden',
+        transform: 'translateZ(0)',
+        transformStyle: 'preserve-3d',
+        willChange: 'transform',
+        zIndex: 1
+      }}>
+        {/* Brillo animado de fondo */}
+        <div style={{
+          position: 'absolute',
+          top: '-50%',
+          left: '-50%',
+          width: '200%',
+          height: '200%',
+          background: 'linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%)',
+          backgroundSize: '1000px 1000px',
+          animation: 'shimmer 6s linear infinite',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
           <div>
             <h1 style={{ 
-              margin: '0 0 8px 0', 
-              fontSize: '36px',
-              fontWeight: 700,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text'
+              margin: '0 0 12px 0', 
+              fontSize: '3.2em',
+              fontWeight: 800,
+              color: '#ffffff',
+              letterSpacing: '-0.02em',
+              lineHeight: 1.1,
+              textShadow: `
+                0 2px 10px rgba(0,0,0,0.3),
+                0 4px 20px rgba(102, 126, 234, 0.4),
+                0 0 40px rgba(102, 126, 234, 0.2)
+              `,
+              transform: 'translateZ(20px)',
+              perspective: '1500px',
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
             }}>
               🏛️ SICOP Analytics Pro
             </h1>
             <p style={{ 
               margin: 0, 
-              color: '#6c757d',
-              fontSize: '18px'
+              color: '#ffffff',
+              fontSize: '1.1em',
+              fontWeight: 600,
+              textShadow: `
+                0 2px 8px rgba(0,0,0,0.4),
+                0 1px 3px rgba(0,0,0,0.3)
+              `,
+              letterSpacing: '0.01em',
+              transform: 'translateZ(10px)',
+              opacity: 0.98
             }}>
               Análisis Avanzado de Contratación Pública • {dashboardData.kpi_metrics.total_carteles.toLocaleString()} licitaciones • {sectoresReales.length} sectores
             </p>
           </div>
           <div style={{
             display: 'flex',
-            gap: '12px',
-            alignItems: 'center'
+            gap: '16px',
+            alignItems: 'center',
+            transform: 'translateZ(15px)'
           }}>
             <button
               onClick={() => alert('Download functionality moved to separate component')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px) scale(1.05) rotateY(5deg)';
+                e.currentTarget.style.boxShadow = '0 12px 32px rgba(108, 92, 231, 0.4), 0 0 0 3px rgba(255,255,255,0.2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0) scale(1) rotateY(0deg)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2), 0 0 40px rgba(108, 92, 231, 0.3)';
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                background: 'linear-gradient(135deg, #6c5ce7 0%, #00cec9 100%)',
+                background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 50%, #00cec9 100%)',
                 color: 'white',
                 border: 'none',
-                padding: '10px 14px',
-                borderRadius: '12px',
-                fontWeight: 600,
+                padding: '10px 18px',
+                borderRadius: '14px',
+                fontWeight: 700,
+                fontSize: '13px',
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                boxShadow: '0 8px 24px rgba(0,0,0,0.2), 0 0 40px rgba(108, 92, 231, 0.3)',
+                transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                position: 'relative',
+                overflow: 'hidden',
+                letterSpacing: '0.02em',
+                willChange: 'transform'
               }}
               title="Download moved to separate component"
             >
-              Info
+              <span style={{ position: 'relative', zIndex: 1 }}>📊 Info</span>
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                width: '500px',
+                height: '500px',
+                background: 'radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%)',
+                transform: 'translate(-50%, -50%) scale(0)',
+                transition: 'transform 0.6s ease-out',
+                borderRadius: '50%',
+                pointerEvents: 'none'
+              }} />
             </button>
-            <div style={{
-              background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
-              color: 'white',
-              padding: '8px 16px',
-              borderRadius: '12px',
-              fontSize: '14px',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}>
-              <Clock size={16} />
+            <div 
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.08) rotateZ(2deg)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1) rotateZ(0deg)';
+              }}
+              style={{
+                background: 'linear-gradient(135deg, #28a745 0%, #20c997 50%, #00b894 100%)',
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: '14px',
+                fontSize: '13px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 8px 24px rgba(40, 167, 69, 0.3), 0 0 0 1px rgba(255,255,255,0.2) inset',
+                transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                animation: 'pulse 3s ease-in-out infinite',
+                letterSpacing: '0.03em',
+                willChange: 'transform'
+              }}
+            >
+              <Clock size={18} style={{ animation: 'glow-pulse 2s ease-in-out infinite' }} />
               Datos Reales
             </div>
           </div>
@@ -706,12 +1157,14 @@ export const ModernDashboard: React.FC = () => {
         isLoading={isLoadingFilters}
       />
 
-      {/* Grid de KPIs Avanzados */}
+      {/* Grid de KPIs Avanzados - Optimizado Full HD */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-        gap: '20px',
-        marginBottom: '32px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+        gap: '28px',
+        marginBottom: '48px',
+        perspective: '2000px',
+        transformStyle: 'preserve-3d'
       }}>
         <KPICard
           title="Total Carteles"
@@ -791,36 +1244,95 @@ export const ModernDashboard: React.FC = () => {
         />
       </div>
 
-      {/* Grid principal de análisis */}
+      {/* Grid principal de análisis - Premium Glassmorphism */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '2fr 1fr',
-        gap: '24px',
-        marginBottom: '24px'
+        gap: '32px',
+        marginBottom: '36px',
+        perspective: '2000px',
+        transformStyle: 'preserve-3d'
       }}>
         {/* Distribución sectorial con datos reales */}
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          padding: '24px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-          border: '1px solid #e9ecef'
+        <div 
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-8px) translateZ(15px) rotateX(2deg)';
+            e.currentTarget.style.boxShadow = `
+              0 25px 70px rgba(0,0,0,0.2),
+              0 0 0 2px rgba(255,255,255,0.4) inset,
+              0 35px 100px rgba(102, 126, 234, 0.25)
+            `;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0deg)';
+            e.currentTarget.style.boxShadow = `
+              0 12px 40px rgba(0,0,0,0.12),
+              0 0 0 1px rgba(255,255,255,0.25) inset,
+              0 25px 70px rgba(102, 126, 234, 0.18)
+            `;
+          }}
+          style={{
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.88) 100%)',
+          backdropFilter: 'blur(25px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+          borderRadius: '28px',
+          padding: '36px',
+          boxShadow: `
+            0 12px 40px rgba(0,0,0,0.12),
+            0 0 0 1px rgba(255,255,255,0.25) inset,
+            0 25px 70px rgba(102, 126, 234, 0.18)
+          `,
+          border: '2px solid rgba(255,255,255,0.35)',
+          position: 'relative',
+          overflow: 'hidden',
+          transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          transform: 'translateZ(0)',
+          transformStyle: 'preserve-3d',
+          willChange: 'transform, box-shadow'
         }}>
+          {/* Brillo animado */}
+          <div style={{
+            position: 'absolute',
+            top: '-50%',
+            right: '-50%',
+            width: '200%',
+            height: '200%',
+            background: 'linear-gradient(45deg, transparent 30%, rgba(102, 126, 234, 0.1) 50%, transparent 70%)',
+            backgroundSize: '600px 600px',
+            animation: 'shimmer 8s linear infinite',
+            pointerEvents: 'none'
+          }} />
+          
           <h3 style={{ 
             margin: '0 0 20px 0', 
-            fontSize: '20px', 
-            fontWeight: 600,
+            fontSize: '18px', 
+            fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: '10px',
+            position: 'relative',
+            zIndex: 1,
+            letterSpacing: '-0.01em'
           }}>
-            📊 Distribución por Sectores
+            <span style={{ fontSize: '22px', animation: 'glow-pulse 2.5s ease-in-out infinite' }}>📊</span>
             <span style={{
-              background: '#28a745',
+              background: 'linear-gradient(135deg, #2c3e50 0%, #667eea 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>
+              Distribución por Sectores
+            </span>
+            <span style={{
+              background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
               color: 'white',
-              padding: '4px 8px',
-              borderRadius: '6px',
-              fontSize: '12px'
+              padding: '5px 12px',
+              borderRadius: '8px',
+              fontSize: '11px',
+              fontWeight: 700,
+              boxShadow: '0 4px 15px rgba(40, 167, 69, 0.3)',
+              letterSpacing: '0.03em',
+              animation: 'pulse 2s ease-in-out infinite'
             }}>
               DATOS REALES
             </span>
@@ -897,79 +1409,174 @@ export const ModernDashboard: React.FC = () => {
         <AlertPanel alerts={alertasInteligentes} />
       </div>
 
-      {/* Tendencias temporales */}
+      {/* Tendencias temporales - Optimizado Full HD */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
-        gap: '24px'
+        gap: '32px',
+        marginTop: '36px',
+        perspective: '2000px',
+        transformStyle: 'preserve-3d'
       }}>
         <MetricaTemporalChart 
           data={tendenciasDiarias}
           title="Tendencias Mensual"
-          height={250}
+          height={280}
         />
         
-        {/* Métricas de eficiencia */}
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          padding: '24px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-          border: '1px solid #e9ecef'
+        {/* Métricas de eficiencia - Premium Design */}
+        <div 
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
+            e.currentTarget.style.boxShadow = `
+              0 20px 60px rgba(0,0,0,0.18),
+              0 0 0 2px rgba(255,255,255,0.35) inset,
+              0 30px 80px rgba(102, 126, 234, 0.22)
+            `;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0deg)';
+            e.currentTarget.style.boxShadow = `
+              0 12px 40px rgba(0,0,0,0.12),
+              0 0 0 1px rgba(255,255,255,0.25) inset,
+              0 25px 70px rgba(102, 126, 234, 0.18)
+            `;
+          }}
+          style={{
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.88) 100%)',
+          backdropFilter: 'blur(25px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+          borderRadius: '28px',
+          padding: '32px',
+          boxShadow: `
+            0 12px 40px rgba(0,0,0,0.12),
+            0 0 0 1px rgba(255,255,255,0.25) inset,
+            0 25px 70px rgba(102, 126, 234, 0.18)
+          `,
+          border: '2px solid rgba(255,255,255,0.35)',
+          position: 'relative',
+          overflow: 'hidden',
+          transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          transform: 'translateZ(0)',
+          transformStyle: 'preserve-3d',
+          willChange: 'transform, box-shadow'
         }}>
+          {/* Efecto shimmer */}
+          <div style={{
+            position: 'absolute',
+            top: '-50%',
+            left: '-50%',
+            width: '200%',
+            height: '200%',
+            background: 'linear-gradient(45deg, transparent 30%, rgba(243, 156, 18, 0.08) 50%, transparent 70%)',
+            backgroundSize: '500px 500px',
+            animation: 'shimmer 6s linear infinite',
+            pointerEvents: 'none'
+          }} />
+          
           <h3 style={{ 
-            margin: '0 0 20px 0', 
-            fontSize: '18px', 
-            fontWeight: 600,
+            margin: '0 0 24px 0', 
+            fontSize: '22px', 
+            fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: '10px',
+            position: 'relative',
+            zIndex: 1,
+            letterSpacing: '-0.01em'
           }}>
-            ⚡ Métricas de Eficiencia
+            <span style={{ fontSize: '26px', animation: 'glow-pulse 2.5s ease-in-out infinite' }}>⚡</span>
+            <span style={{
+              background: 'linear-gradient(135deg, #2c3e50 0%, #f39c12 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>
+              Métricas de Eficiencia
+            </span>
           </h3>
           
-          <div style={{ display: 'grid', gap: '16px' }}>
-            <div style={{
-              padding: '16px',
-              background: 'linear-gradient(135deg, #3498db15 0%, #3498db25 100%)',
-              borderRadius: '12px',
-              border: '1px solid #3498db'
+          <div style={{ display: 'grid', gap: '18px', position: 'relative', zIndex: 1 }}>
+            <div 
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateX(8px) scale(1.03)';
+                e.currentTarget.style.boxShadow = '0 12px 32px rgba(52, 152, 219, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateX(0) scale(1)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(52, 152, 219, 0.15)';
+              }}
+              style={{
+              padding: '20px 24px',
+              background: 'linear-gradient(135deg, rgba(52, 152, 219, 0.15) 0%, rgba(52, 152, 219, 0.08) 100%)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: '18px',
+              border: '2px solid rgba(52, 152, 219, 0.3)',
+              boxShadow: '0 6px 20px rgba(52, 152, 219, 0.15)',
+              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              willChange: 'transform, box-shadow'
             }}>
-              <div style={{ fontWeight: 600, color: '#2c3e50' }}>Tasa de Conversión</div>
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#3498db' }}>
+              <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.02em' }}>Tasa de Conversión</div>
+              <div style={{ fontSize: '32px', fontWeight: 800, color: '#3498db', lineHeight: 1, marginBottom: '6px', letterSpacing: '-0.02em' }}>
                 {metricsReales.tasaConversion}%
               </div>
-              <div style={{ fontSize: '12px', color: '#6c757d' }}>
+              <div style={{ fontSize: '11px', color: '#6c757d', fontWeight: 500 }}>
                 Carteles → Contratos
               </div>
             </div>
             
-            <div style={{
-              padding: '16px',
-              background: 'linear-gradient(135deg, #27ae6015 0%, #27ae6025 100%)',
-              borderRadius: '12px',
-              border: '1px solid #27ae60'
+            <div 
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateX(8px) scale(1.03)';
+                e.currentTarget.style.boxShadow = '0 12px 32px rgba(39, 174, 96, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateX(0) scale(1)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(39, 174, 96, 0.15)';
+              }}
+              style={{
+              padding: '20px 24px',
+              background: 'linear-gradient(135deg, rgba(39, 174, 96, 0.15) 0%, rgba(39, 174, 96, 0.08) 100%)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: '18px',
+              border: '2px solid rgba(39, 174, 96, 0.3)',
+              boxShadow: '0 6px 20px rgba(39, 174, 96, 0.15)',
+              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              willChange: 'transform, box-shadow'
             }}>
-              <div style={{ fontWeight: 600, color: '#2c3e50' }}>Competencia Promedio</div>
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#27ae60' }}>
+              <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.02em' }}>Competencia Promedio</div>
+              <div style={{ fontSize: '32px', fontWeight: 800, color: '#27ae60', lineHeight: 1, marginBottom: '6px', letterSpacing: '-0.02em' }}>
                 {metricsReales.competenciaPromedio}
               </div>
-              <div style={{ fontSize: '12px', color: '#6c757d' }}>
+              <div style={{ fontSize: '11px', color: '#6c757d', fontWeight: 500 }}>
                 Ofertas por cartel
               </div>
             </div>
             
-            <div style={{
-              padding: '16px',
-              background: 'linear-gradient(135deg, #f39c1215 0%, #f39c1225 100%)',
-              borderRadius: '12px',
-              border: '1px solid #f39c12'
+            <div 
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateX(8px) scale(1.03)';
+                e.currentTarget.style.boxShadow = '0 12px 32px rgba(243, 156, 18, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateX(0) scale(1)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(243, 156, 18, 0.15)';
+              }}
+              style={{
+              padding: '20px 24px',
+              background: 'linear-gradient(135deg, rgba(243, 156, 18, 0.15) 0%, rgba(243, 156, 18, 0.08) 100%)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: '18px',
+              border: '2px solid rgba(243, 156, 18, 0.3)',
+              boxShadow: '0 6px 20px rgba(243, 156, 18, 0.15)',
+              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              willChange: 'transform, box-shadow'
             }}>
-              <div style={{ fontWeight: 600, color: '#2c3e50' }}>Participación Proveedores</div>
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#f39c12' }}>
+              <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.02em' }}>Participación Proveedores</div>
+              <div style={{ fontSize: '32px', fontWeight: 800, color: '#f39c12', lineHeight: 1, marginBottom: '6px', letterSpacing: '-0.02em' }}>
                 {metricsReales.eficienciaProveedores}%
               </div>
-              <div style={{ fontSize: '12px', color: '#6c757d' }}>
+              <div style={{ fontSize: '11px', color: '#6c757d', fontWeight: 500 }}>
                 Eficiencia del mercado
               </div>
             </div>
@@ -977,47 +1584,203 @@ export const ModernDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Complementos: Top entidades y proveedores */}
+      {/* Complementos: Top entidades y proveedores - Premium Design */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
-        gap: '24px',
-        marginTop: '24px'
+        gap: '32px',
+        marginTop: '36px',
+        perspective: '2000px',
+        transformStyle: 'preserve-3d'
       }}>
-        <div style={{
-          background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: '1px solid #e9ecef'
+        <div 
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
+            e.currentTarget.style.boxShadow = `
+              0 20px 60px rgba(0,0,0,0.18),
+              0 0 0 2px rgba(255,255,255,0.35) inset,
+              0 30px 80px rgba(102, 126, 234, 0.22)
+            `;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0deg)';
+            e.currentTarget.style.boxShadow = `
+              0 12px 40px rgba(0,0,0,0.12),
+              0 0 0 1px rgba(255,255,255,0.25) inset,
+              0 25px 70px rgba(102, 126, 234, 0.18)
+            `;
+          }}
+          style={{
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.88) 100%)',
+          backdropFilter: 'blur(25px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+          borderRadius: '28px',
+          padding: '32px',
+          boxShadow: `
+            0 12px 40px rgba(0,0,0,0.12),
+            0 0 0 1px rgba(255,255,255,0.25) inset,
+            0 25px 70px rgba(102, 126, 234, 0.18)
+          `,
+          border: '2px solid rgba(255,255,255,0.35)',
+          position: 'relative',
+          overflow: 'hidden',
+          transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          transform: 'translateZ(0)',
+          transformStyle: 'preserve-3d',
+          willChange: 'transform, box-shadow'
         }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>🏢 Top 10 Instituciones por Monto</h3>
-          <div style={{ maxHeight: 360, overflowY: 'auto', display: 'grid', gap: 8 }}>
+          {/* Efecto shimmer */}
+          <div style={{
+            position: 'absolute',
+            top: '-50%',
+            right: '-50%',
+            width: '200%',
+            height: '200%',
+            background: 'linear-gradient(45deg, transparent 30%, rgba(23, 162, 184, 0.08) 50%, transparent 70%)',
+            backgroundSize: '600px 600px',
+            animation: 'shimmer 7s linear infinite',
+            pointerEvents: 'none'
+          }} />
+          
+          <h3 style={{ 
+            margin: '0 0 24px 0', 
+            fontSize: '22px', 
+            fontWeight: 700,
+            position: 'relative',
+            zIndex: 1,
+            letterSpacing: '-0.01em'
+          }}>
+            <span style={{ fontSize: '26px', marginRight: '10px', animation: 'glow-pulse 2.5s ease-in-out infinite' }}>🏢</span>
+            <span style={{
+              background: 'linear-gradient(135deg, #2c3e50 0%, #17a2b8 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>
+              Top 10 Instituciones por Monto
+            </span>
+          </h3>
+          
+          <div style={{ maxHeight: 400, overflowY: 'auto', display: 'grid', gap: 12, position: 'relative', zIndex: 1 }}>
             {topInstituciones.map((it: any, idx: number) => (
-              <div key={it.codigo} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: '1px solid #e9ecef' }}>
-                <div style={{ fontWeight: 600, color: '#2c3e50' }}>
+              <div 
+                key={it.codigo}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateX(10px) scale(1.02)';
+                  e.currentTarget.style.boxShadow = '0 8px 28px rgba(23, 162, 184, 0.25)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateX(0) scale(1)';
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)';
+                }}
+                style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr auto auto', 
+                gap: 14, 
+                alignItems: 'center', 
+                padding: '14px 18px', 
+                borderRadius: 14,
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.7) 100%)',
+                backdropFilter: 'blur(10px)',
+                border: '2px solid rgba(233, 236, 239, 0.6)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+                transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                willChange: 'transform, box-shadow'
+              }}>
+                <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '15px', letterSpacing: '-0.01em' }}>
                   {idx + 1}. {it.nombre}
                   {it.nombre !== it.codigo && (
-                    <span style={{ marginLeft: 8, color: '#999', fontWeight: 400 }}>({it.codigo})</span>
+                    <span style={{ marginLeft: 10, color: '#999', fontWeight: 500, fontSize: '13px' }}>({it.codigo})</span>
                   )}
                 </div>
-                <div style={{ color: '#6c757d' }}>{it.carteles.toLocaleString()} carteles</div>
+                <div style={{ color: '#6c757d', fontWeight: 600, fontSize: '13px' }}>{it.carteles.toLocaleString()} carteles</div>
                 {(() => { const v = withTooltip(formatCRCCompact(it.monto||0), it.monto); return (
-                  <div title={v.title} style={{ fontWeight: 700, color: '#e74c3c' }}>{v.text}</div>
+                  <div title={v.title} style={{ fontWeight: 800, color: '#e74c3c', fontSize: '15px' }}>{v.text}</div>
                 );})()}
               </div>
             ))}
           </div>
         </div>
 
-        <div style={{
-          background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: '1px solid #e9ecef'
+        <div 
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
+            e.currentTarget.style.boxShadow = `
+              0 20px 60px rgba(0,0,0,0.18),
+              0 0 0 2px rgba(255,255,255,0.35) inset,
+              0 30px 80px rgba(102, 126, 234, 0.22)
+            `;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0deg)';
+            e.currentTarget.style.boxShadow = `
+              0 12px 40px rgba(0,0,0,0.12),
+              0 0 0 1px rgba(255,255,255,0.25) inset,
+              0 25px 70px rgba(102, 126, 234, 0.18)
+            `;
+          }}
+          style={{
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.88) 100%)',
+          backdropFilter: 'blur(25px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+          borderRadius: '28px',
+          padding: '32px',
+          boxShadow: `
+            0 12px 40px rgba(0,0,0,0.12),
+            0 0 0 1px rgba(255,255,255,0.25) inset,
+            0 25px 70px rgba(102, 126, 234, 0.18)
+          `,
+          border: '2px solid rgba(255,255,255,0.35)',
+          position: 'relative',
+          overflow: 'hidden',
+          transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          transform: 'translateZ(0)',
+          transformStyle: 'preserve-3d',
+          willChange: 'transform, box-shadow'
         }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            👷 Top 10 Proveedores por Monto
+          {/* Efecto shimmer */}
+          <div style={{
+            position: 'absolute',
+            top: '-50%',
+            left: '-50%',
+            width: '200%',
+            height: '200%',
+            background: 'linear-gradient(45deg, transparent 30%, rgba(102, 126, 234, 0.08) 50%, transparent 70%)',
+            backgroundSize: '600px 600px',
+            animation: 'shimmer 7s linear infinite',
+            pointerEvents: 'none'
+          }} />
+          
+          <h3 style={{ 
+            margin: '0 0 24px 0', 
+            fontSize: '22px', 
+            fontWeight: 700, 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '10px',
+            position: 'relative',
+            zIndex: 1,
+            letterSpacing: '-0.01em'
+          }}>
+            <span style={{ fontSize: '26px', animation: 'glow-pulse 2.5s ease-in-out infinite' }}>👷</span>
+            <span style={{
+              background: 'linear-gradient(135deg, #2c3e50 0%, #667eea 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>
+              Top 10 Proveedores por Monto
+            </span>
             <span style={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               color: 'white',
-              padding: '4px 8px',
-              borderRadius: '6px',
+              padding: '6px 12px',
+              borderRadius: '10px',
               fontSize: '12px',
-              fontWeight: 600
+              fontWeight: 700,
+              boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
+              letterSpacing: '0.03em',
+              animation: 'pulse 2.5s ease-in-out infinite'
             }}>
               NUEVO
             </span>

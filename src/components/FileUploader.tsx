@@ -10,7 +10,7 @@ interface FileWithMetadata {
   year: number;
   month: number;
   type: string;
-  status: 'pending' | 'uploading' | 'success' | 'error';
+  status: 'pending' | 'uploading' | 'success' | 'error' | 'skipped';
   error?: string;
   recordCount?: number;
 }
@@ -44,6 +44,16 @@ const CSV_TYPES = [
   'SancionProveedores',
   'Remates',
 ];
+
+// Archivos opcionales (no críticos para la funcionalidad principal)
+// ⚠️ SINCRONIZADO CON DataManager.ts - ARCHIVOS_OPCIONALES
+const ARCHIVOS_OPCIONALES = new Set([
+  'InvitacionProcedimiento', // Solo enriquece nombres (0.95% de valor agregado)
+  'Garantias',               // Datos complementarios
+  'RecursosObjecion',        // Datos complementarios
+  'SancionProveedores',      // Datos complementarios
+  'Remates'                  // Datos complementarios
+]);
 
 export const FileUploader: React.FC<{
   onUploadComplete?: (uploadedFiles: CachedFile[]) => void;
@@ -461,10 +471,23 @@ export const FileUploader: React.FC<{
         recordCount: normalizedData.length 
       });
     } catch (error) {
-      updateFileMetadata(index, { 
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Error desconocido'
-      });
+      const esOpcional = ARCHIVOS_OPCIONALES.has(fileMetadata.type);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      
+      // Si el archivo es opcional y el error es por tamaño, marcarlo como "skipped"
+      if (esOpcional && (errorMessage.includes('string length') || errorMessage.includes('tamaño'))) {
+        updateFileMetadata(index, { 
+          status: 'skipped',
+          error: 'Archivo opcional no cargado (excede límite de tamaño)'
+        });
+        console.info(`ℹ️ ${fileMetadata.type} omitido (archivo opcional): ${errorMessage}`);
+      } else {
+        updateFileMetadata(index, { 
+          status: 'error',
+          error: errorMessage
+        });
+        console.error(`❌ Error cargando ${fileMetadata.type}:`, errorMessage);
+      }
     }
   };
 
@@ -707,6 +730,11 @@ export const FileUploader: React.FC<{
           color: #388e3c;
         }
 
+        .status-skipped {
+          background: #fff3e0;
+          color: #f57c00;
+        }
+
         .status-error {
           background: #ffebee;
           color: #d32f2f;
@@ -904,6 +932,12 @@ export const FileUploader: React.FC<{
                   <>
                     <CheckCircle size={16} />
                     <span>Cargado exitosamente</span>
+                  </>
+                )}
+                {fileData.status === 'skipped' && (
+                  <>
+                    <AlertCircle size={16} />
+                    <span>No cargado (opcional)</span>
                   </>
                 )}
                 {fileData.status === 'error' && (

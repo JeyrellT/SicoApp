@@ -281,14 +281,24 @@
 
 .metric-content {
   flex: 1;
+  overflow: hidden; /* Prevenir desbordamiento */
 }
 
 .metric-value {
-  font-size: 28px;
+  font-size: 24px; /* Reducido de 28px */
   font-weight: 700;
   color: #2c3e50;
-  line-height: 1;
+  line-height: 1.2;
   margin-bottom: 5px;
+  word-break: break-word; /* Romper palabras largas */
+  max-width: 100%; /* Limitar ancho */
+  overflow: hidden;
+  text-overflow: ellipsis; /* Añadir ... si es muy largo */
+}
+
+/* Limitar números muy grandes específicamente */
+.metric-value:has(+ .metric-label:contains("Crecimiento")) {
+  font-size: 20px;
 }
 
 .metric-label {

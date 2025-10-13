@@ -6,93 +6,183 @@
  * @company Saenz Fallas S.A.
  * @license Propiedad de Saenz Fallas S.A.
  * 
- * Este software es propiedad exclusiva de Saenz Fallas S.A.
- * Queda prohibida su reproducción, distribución o modificación
- * sin autorización expresa por escrito de Saenz Fallas S.A.
- * 
  * HQ Analytics™ - High Technology Quality Analytics
  */
 
-import React, { useState } from 'react';
-import { SicopProvider } from './context/SicopContext';
+import React, { useState, useEffect } from 'react';
+import { SicopProvider, useSicop } from './context/SicopContext.tsx';
 import { DemoPanel } from './components/DemoPanel';
 import { DataManagementHub } from './components/DataManagementHub';
-import { WelcomeScreenModern } from './components/WelcomeScreenModern';
-import { dataLoaderService } from './services/DataLoaderService';
-import { dataManager } from './data/DataManager';
+import { WelcomeScreenModern } from './components/WelcomeScreenModern.tsx';
+import { ModernLoadingScreen } from './components/ModernLoadingScreen';
 import './App.css';
 
-function App() {
-  // Estados de navegación
-  const [currentScreen, setCurrentScreen] = useState('welcome'); // 'welcome' | 'dataManagement' | 'loading' | 'mainApp'
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingStage, setLoadingStage] = useState('');
-  const [loadingError, setLoadingError] = useState(null);
+// ================================
+// CONSTANTS
+// ================================
 
-  // Manejar navegación a gestión de datos
+const STORAGE_KEY = 'sicop_navigation_state';
+const STATE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 horas
+
+// ================================
+// HELPER FUNCTIONS
+// ================================
+
+/**
+ * Obtiene el estado inicial de navegación desde localStorage
+ * Valida que el estado no esté expirado y sea válido
+ */
+function getInitialScreen() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    
+    if (!saved) {
+      console.log('🆕 Primera vez - mostrando pantalla de bienvenida');
+      return 'welcome';
+    }
+
+    const { currentScreen, timestamp } = JSON.parse(saved);
+    
+    // Validar que sea un valor válido
+    if (!currentScreen || currentScreen === 'undefined') {
+      console.warn('⚠️ Estado corrupto en localStorage, limpiando...');
+      localStorage.removeItem(STORAGE_KEY);
+      return 'welcome';
+    }
+    
+    // Verificar expiración (24 horas)
+    if (Date.now() - timestamp > STATE_EXPIRY_MS) {
+      console.log('⏰ Estado expirado, volviendo a welcome');
+      return 'welcome';
+    }
+    
+    // Nunca restaurar pantalla de loading
+    if (currentScreen === 'loading') {
+      console.log('🏠 Redirigiendo de loading a welcome');
+      return 'welcome';
+    }
+    
+    console.log('✅ Restaurando pantalla:', currentScreen);
+    return currentScreen;
+    
+  } catch (error) {
+    console.warn('⚠️ Error restaurando estado de navegación:', error);
+    localStorage.removeItem(STORAGE_KEY);
+    return 'welcome';
+  }
+}
+
+// ================================
+// APP CONTENT (WITHIN PROVIDER)
+// ================================
+
+/**
+ * Contenido principal de la app que tiene acceso al contexto
+ * Separado para poder usar el hook useSicop()
+ */
+function AppContent() {
+  const [currentScreen, setCurrentScreen] = useState(() => getInitialScreen());
+  const [showDataManagementTour, setShowDataManagementTour] = useState(false);
+  
+  // Obtener estado del contexto
+  const { 
+    isLoaded, 
+    isLoading, 
+    load, 
+    progress, 
+    stage, 
+    loadingDetails,
+    error 
+  } = useSicop();
+
+  // ================================
+  // PERSISTENCIA DE NAVEGACIÓN
+  // ================================
+
+  useEffect(() => {
+    // Guardar estado de navegación en localStorage
+    if (currentScreen && currentScreen !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          currentScreen,
+          timestamp: Date.now()
+        }));
+        console.log('💾 Estado de navegación guardado:', currentScreen);
+      } catch (error) {
+        console.warn('⚠️ Error guardando estado:', error);
+      }
+    }
+  }, [currentScreen]);
+
+  // ================================
+  // AUTO-CARGA EN RECARGA DE PÁGINA
+  // ================================
+
+  useEffect(() => {
+    // Si estamos en mainApp pero no hay datos cargados, iniciar carga automática
+    if (currentScreen === 'mainApp' && !isLoaded && !isLoading) {
+      console.log('🔄 Recarga detectada en mainApp sin datos. Iniciando carga automática...');
+      setCurrentScreen('loading');
+      load();
+    }
+  }, [currentScreen, isLoaded, isLoading, load]);
+
+  // ================================
+  // AUTO-NAVEGACIÓN DESPUÉS DE CARGA
+  // ================================
+
+  useEffect(() => {
+    // Cuando termina la carga, navegar a mainApp
+    if (currentScreen === 'loading' && isLoaded) {
+      console.log('✅ Carga completada, navegando a mainApp...');
+      
+      // Pequeño delay para mostrar 100% completo
+      const timer = setTimeout(() => {
+        setCurrentScreen('mainApp');
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentScreen, isLoaded]);
+
+  // ================================
+  // HANDLERS DE NAVEGACIÓN
+  // ================================
+
+  const handleLaunchApp = () => {
+    console.log('🚀 Lanzando aplicación...');
+    setCurrentScreen('loading');
+    load(); // El efecto auto-navegará cuando termine
+  };
+
   const handleGoToDataManagement = () => {
+    console.log('📂 Navegando a gestión de datos...');
     setCurrentScreen('dataManagement');
   };
 
-  // Manejar carga de datos y navegación a app principal
-  const handleLaunchApp = async () => {
-    try {
-      // Verificar si hay datos en cache
-      const hasCache = await dataLoaderService.hasDataInCache();
-      
-      if (!hasCache) {
-        alert('No hay datos en cache. Por favor, primero carga archivos CSV.');
-        return;
-      }
-
-      // Verificar si DataManager ya tiene datos cargados
-      if (dataManager.isDataLoaded) {
-        console.log('✅ DataManager ya tiene datos cargados, navegando directamente...');
-        setCurrentScreen('mainApp');
-        return;
-      }
-
-      // Cambiar a pantalla de carga
-      setCurrentScreen('loading');
-      setLoadingError(null);
-      setLoadingProgress(0);
-      setLoadingStage('Iniciando carga de datos...');
-
-      // Cargar datos desde cache al DataManager
-      await dataLoaderService.loadDataFromCache({
-        onProgress: (progress) => {
-          setLoadingProgress(progress.percentage);
-          setLoadingStage(progress.stage);
-          console.log(`📊 ${progress.stage}: ${progress.percentage}%`);
-        }
-      });
-
-      // Esperar un momento para mostrar el 100%
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Navegar a la aplicación principal
-      console.log('🎉 Datos cargados exitosamente, navegando a aplicación principal...');
-      setCurrentScreen('mainApp');
-
-    } catch (error) {
-      console.error('💥 Error cargando datos:', error);
-      setLoadingError(error.message);
-      
-      // Volver a la pantalla de bienvenida después de mostrar el error
-      setTimeout(() => {
-        setCurrentScreen('welcome');
-      }, 3000);
-    }
+  const handleGoBackToWelcome = () => {
+    console.log('🏠 Volviendo a welcome...');
+    setCurrentScreen('welcome');
   };
 
-  // Renderizar pantalla actual
-  const renderCurrentScreen = () => {
+  const handleStartTour = () => {
+    console.log('🎓 Iniciando tour guiado...');
+    setShowDataManagementTour(true);
+    setCurrentScreen('dataManagement');
+  };
+
+  // ================================
+  // RENDERIZADO
+  // ================================
+
+  const renderScreen = () => {
     switch (currentScreen) {
       case 'welcome':
         return (
           <WelcomeScreenModern 
             onManageData={handleGoToDataManagement}
             onLaunchApp={handleLaunchApp}
+            onStartTour={handleStartTour}
           />
         );
 
@@ -100,99 +190,52 @@ function App() {
         return (
           <DataManagementHub 
             onLaunchApp={handleLaunchApp}
+            onGoBack={handleGoBackToWelcome}
+            startTour={showDataManagementTour}
+            onTourComplete={() => setShowDataManagementTour(false)}
           />
         );
 
       case 'loading':
         return (
-          <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white'
-          }}>
-            <div style={{
-              background: 'white',
-              borderRadius: '20px',
-              padding: '60px',
-              maxWidth: '600px',
-              width: '90%',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
-            }}>
-              <h2 style={{ color: '#333', marginBottom: '30px', textAlign: 'center' }}>
-                {loadingError ? '❌ Error al Cargar Datos' : '⏳ Cargando Datos'}
-              </h2>
-              
-              {loadingError ? (
-                <div style={{
-                  background: '#ffebee',
-                  border: '2px solid #f44336',
-                  borderRadius: '8px',
-                  padding: '20px',
-                  color: '#c62828',
-                  marginBottom: '20px'
-                }}>
-                  <strong>Error:</strong> {loadingError}
-                </div>
-              ) : (
-                <>
-                  <div style={{ marginBottom: '20px', color: '#666', textAlign: 'center' }}>
-                    {loadingStage}
-                  </div>
-                  
-                  <div style={{
-                    width: '100%',
-                    height: '40px',
-                    background: '#e0e0e0',
-                    borderRadius: '20px',
-                    overflow: 'hidden',
-                    marginBottom: '10px'
-                  }}>
-                    <div style={{
-                      width: `${loadingProgress}%`,
-                      height: '100%',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      transition: 'width 0.3s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      fontWeight: 'bold'
-                    }}>
-                      {loadingProgress}%
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {loadingError && (
-                <p style={{ color: '#666', textAlign: 'center', fontSize: '0.9em' }}>
-                  Regresando a la pantalla de inicio...
-                </p>
-              )}
-            </div>
-          </div>
+          <ModernLoadingScreen 
+            progress={progress}
+            stage={stage}
+            error={error?.message || null}
+            detailedInfo={loadingDetails}
+            onGoBack={handleGoBackToWelcome}
+          />
         );
 
       case 'mainApp':
         return (
-          <SicopProvider>
-            <DemoPanel />
-          </SicopProvider>
+          <DemoPanel onGoBackToWelcome={handleGoBackToWelcome} />
         );
 
       default:
-        return null;
+        console.warn('⚠️ Pantalla desconocida:', currentScreen);
+        return (
+          <WelcomeScreenModern 
+            onManageData={handleGoToDataManagement}
+            onLaunchApp={handleLaunchApp}
+            onStartTour={handleStartTour}
+          />
+        );
     }
   };
 
+  return renderScreen();
+}
+
+// ================================
+// APP WRAPPER (WITH PROVIDER)
+// ================================
+
+function App() {
   return (
-    <div className="App">
-      {renderCurrentScreen()}
-    </div>
+    <SicopProvider>
+      <AppContent />
+    </SicopProvider>
   );
 }
 

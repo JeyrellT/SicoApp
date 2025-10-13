@@ -16,6 +16,17 @@ export interface CategoryAnalysis {
     presupuestoLinea?: number;
     codigoInstitucion: string;
     palabrasCoincidentes: string[];
+    // Nuevos campos para diferenciar nivel de coincidencia
+    tipoCoincidencia: 'cartel' | 'lineas'; // Si coincidió en datos del cartel o en líneas específicas
+    lineasCoincidentes?: Array<{
+      descripcion: string;
+      presupuesto: number;
+      palabrasEncontradas: string[];
+    }>; // Solo para tipoCoincidencia === 'lineas'
+    todasLasLineas?: Array<{
+      descripcion: string;
+      presupuesto: number;
+    }>; // Solo para tipoCoincidencia === 'cartel', para mostrar expandible
   }>;
   subcategorias?: Array<{
     nombre: string;
@@ -143,7 +154,8 @@ class CategoryAnalysisServiceImpl {
         descripcionLinea: l.descripcionLinea,
         presupuestoLinea: l.presupuestoLinea,
         codigoInstitucion: l.cartel?.codigoInstitucion || '',
-        palabrasCoincidentes: l.coincidencias
+        palabrasCoincidentes: l.coincidencias,
+        tipoCoincidencia: 'cartel' as const // Por defecto en este servicio legacy
       }));
       
       // Análisis por institución

@@ -9,8 +9,7 @@
 export { FileUploader } from './components/FileUploader';
 export { CacheManager } from './components/CacheManager';
 export { DataManagementHub } from './components/DataManagementHub';
-export { ConsolidationExample } from './components/ConsolidationExample';
-export { WelcomeScreen } from './components/WelcomeScreen';
+export { WelcomeScreenModern } from './components/WelcomeScreenModern';
 export { ValidationReportPanel } from './components/ValidationReportPanel';
 
 // Servicios

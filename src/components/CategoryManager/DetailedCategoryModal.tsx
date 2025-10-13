@@ -63,6 +63,7 @@ interface DetailedCategoryModalProps {
 
 export default function DetailedCategoryModal({ category, onClose }: DetailedCategoryModalProps) {
   const [currentPage, setCurrentPage] = useState(0);
+  const [expandedExamples, setExpandedExamples] = useState<Set<number>>(new Set()); // NUEVO: Estado para controlar qué ejemplos están expandidos
   const itemsPerPage = 20;
   const totalPages = Math.ceil(category.ejemplos.length / itemsPerPage);
   
@@ -70,6 +71,19 @@ export default function DetailedCategoryModal({ category, onClose }: DetailedCat
     currentPage * itemsPerPage,
     (currentPage + 1) * itemsPerPage
   );
+
+  // NUEVO: Función para alternar expansión de un ejemplo
+  const toggleExpanded = (index: number) => {
+    setExpandedExamples(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  };
 
   const modalOverlay: React.CSSProperties = {
     position: 'fixed',
@@ -186,99 +200,290 @@ export default function DetailedCategoryModal({ category, onClose }: DetailedCat
             </div>
 
             <div style={{ display: 'grid', gap: 16 }}>
-              {currentExamples.map((ejemplo, i) => (
-                <div key={i} style={{
-                  background: '#ffffff',
-                  border: '2px solid #e5e7eb',
-                  borderRadius: 12,
-                  padding: 20,
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                      <span style={{
-                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                        color: 'white',
-                        padding: '6px 12px',
-                        borderRadius: 8,
-                        fontWeight: 700,
-                        fontSize: 14
-                      }}>
-                        {ejemplo.numeroCartel}
-                      </span>
-                      <span style={{
-                        background: '#f3f4f6',
-                        color: '#374151',
-                        padding: '6px 12px',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        fontWeight: 600
-                      }}>
-                        {ejemplo.codigoInstitucion}
-                      </span>
-                    </div>
-                    {ejemplo.presupuestoLinea && (
-                      <span style={{
-                        background: '#dcfce7',
-                        color: '#166534',
-                        padding: '6px 12px',
-                        borderRadius: 8,
-                        fontWeight: 700,
-                        fontSize: 14
-                      }}>
-                        {formatMoney(ejemplo.presupuestoLinea)}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Descripción con palabras resaltadas */}
-                  <div style={{
-                    fontSize: 15,
-                    lineHeight: 1.6,
-                    color: '#1f2937',
-                    marginBottom: 12,
-                    background: '#f9fafb',
-                    padding: 16,
-                    borderRadius: 8,
-                    borderLeft: '4px solid #22c55e'
+              {currentExamples.map((ejemplo, i) => {
+                const globalIndex = currentPage * itemsPerPage + i; // Índice global para el estado
+                const expandido = expandedExamples.has(globalIndex);
+                
+                return (
+                  <div key={i} style={{
+                    background: '#ffffff',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: 12,
+                    padding: 20,
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
                   }}>
-                    {highlightKeywords(ejemplo.descripcionLinea, ejemplo.palabrasCoincidentes).map((part, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          background: part.highlighted ? '#22c55e' : 'transparent',
-                          color: part.highlighted ? 'white' : '#1f2937',
-                          fontWeight: part.highlighted ? 700 : 400,
-                          padding: part.highlighted ? '2px 6px' : '0',
-                          borderRadius: part.highlighted ? 4 : 0,
-                          boxShadow: part.highlighted ? '0 2px 4px rgba(34, 197, 94, 0.3)' : 'none'
-                        }}
-                      >
-                        {part.text}
-                      </span>
-                    ))}
-                  </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <span style={{
+                          background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                          color: 'white',
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          fontWeight: 700,
+                          fontSize: 14
+                        }}>
+                          {ejemplo.numeroCartel}
+                        </span>
+                        <span style={{
+                          background: '#f3f4f6',
+                          color: '#374151',
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 600
+                        }}>
+                          {ejemplo.codigoInstitucion}
+                        </span>
+                        {/* NUEVO: Badge que indica el tipo de coincidencia */}
+                        <span style={{
+                          background: ejemplo.tipoCoincidencia === 'cartel' 
+                            ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                            : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          color: 'white',
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          fontSize: 11,
+                          fontWeight: 700
+                        }}>
+                          {ejemplo.tipoCoincidencia === 'cartel' ? '📋 Cartel completo' : '📄 Líneas específicas'}
+                        </span>
+                      </div>
+                      {ejemplo.presupuestoLinea && (
+                        <span style={{
+                          background: '#dcfce7',
+                          color: '#166534',
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          fontWeight: 700,
+                          fontSize: 14
+                        }}>
+                          {formatMoney(ejemplo.presupuestoLinea)}
+                        </span>
+                      )}
+                    </div>
 
-                  {/* Palabras coincidentes */}
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>
-                      Palabras clave detectadas:
-                    </span>
-                    {ejemplo.palabrasCoincidentes.map(palabra => (
-                      <span key={palabra} style={{
-                        ...badge,
-                        background: '#22c55e',
-                        color: 'white',
-                        fontSize: 11,
-                        padding: '4px 10px'
-                      }}>
-                        ✓ {palabra}
+                    {/* NUEVO: Lógica diferenciada según tipo de coincidencia */}
+                    {ejemplo.tipoCoincidencia === 'cartel' ? (
+                      // COINCIDENCIA EN CARTEL: Mostrar expandible con todas las líneas
+                      <div>
+                        <div style={{
+                          fontSize: 15,
+                          lineHeight: 1.6,
+                          color: '#1f2937',
+                          marginBottom: 12,
+                          background: '#fef3c7',
+                          padding: 16,
+                          borderRadius: 8,
+                          borderLeft: '4px solid #f59e0b'
+                        }}>
+                          <div style={{ fontWeight: 600, marginBottom: 8, color: '#92400e' }}>
+                            🎯 Coincidencia detectada en los datos del cartel
+                          </div>
+                          {highlightKeywords(ejemplo.descripcionLinea, ejemplo.palabrasCoincidentes).map((part, idx) => (
+                            <span
+                              key={idx}
+                              style={{
+                                background: part.highlighted ? '#f59e0b' : 'transparent',
+                                color: part.highlighted ? 'white' : '#1f2937',
+                                fontWeight: part.highlighted ? 700 : 400,
+                                padding: part.highlighted ? '2px 6px' : '0',
+                                borderRadius: part.highlighted ? 4 : 0,
+                                boxShadow: part.highlighted ? '0 2px 4px rgba(245, 158, 11, 0.3)' : 'none'
+                              }}
+                            >
+                              {part.text}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Botón para expandir y ver todas las líneas */}
+                        {ejemplo.todasLasLineas && ejemplo.todasLasLineas.length > 0 && (
+                          <div style={{ marginTop: 12 }}>
+                            <button
+                              onClick={() => toggleExpanded(globalIndex)}
+                              style={{
+                                background: expandido ? '#f59e0b' : '#fef3c7',
+                                color: expandido ? 'white' : '#92400e',
+                                border: 'none',
+                                borderRadius: 8,
+                                padding: '8px 16px',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                fontSize: 13,
+                                width: '100%',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <span>
+                                {expandido ? '▼' : '▶'} Ver todas las líneas del cartel ({ejemplo.todasLasLineas.length})
+                              </span>
+                            </button>
+                            
+                            {expandido && (
+                              <div style={{
+                                marginTop: 12,
+                                maxHeight: 400,
+                                overflow: 'auto',
+                                background: '#fffbeb',
+                                borderRadius: 8,
+                                padding: 12
+                              }}>
+                                {ejemplo.todasLasLineas.map((linea, idx) => (
+                                  <div key={idx} style={{
+                                    background: 'white',
+                                    padding: 12,
+                                    marginBottom: 8,
+                                    borderRadius: 6,
+                                    borderLeft: '3px solid #fbbf24',
+                                    fontSize: 13
+                                  }}>
+                                    <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
+                                      Línea {idx + 1}
+                                    </div>
+                                    <div style={{ color: '#374151', marginBottom: 6 }}>
+                                      {linea.descripcion}
+                                    </div>
+                                    {linea.presupuesto > 0 && (
+                                      <div style={{ fontSize: 12, color: '#059669', fontWeight: 600 }}>
+                                        {formatMoney(linea.presupuesto)}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      // COINCIDENCIA EN LÍNEAS ESPECÍFICAS: Mostrar solo las líneas que coincidieron
+                      <div>
+                        <div style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          marginBottom: 12,
+                          color: '#059669',
+                          background: '#d1fae5',
+                          padding: 12,
+                          borderRadius: 8,
+                          borderLeft: '4px solid #10b981'
+                        }}>
+                          ✅ Coincidencias encontradas en líneas específicas ({ejemplo.lineasCoincidentes?.length || 0} líneas)
+                        </div>
+                        
+                        {ejemplo.lineasCoincidentes && ejemplo.lineasCoincidentes.length > 0 && (
+                          <div style={{
+                            display: 'grid',
+                            gap: 12,
+                            maxHeight: expandido ? 'none' : 300,
+                            overflow: expandido ? 'visible' : 'auto',
+                            background: '#ecfdf5',
+                            borderRadius: 8,
+                            padding: 12
+                          }}>
+                            {(expandido ? ejemplo.lineasCoincidentes : ejemplo.lineasCoincidentes.slice(0, 2)).map((linea, idx) => (
+                              <div key={idx} style={{
+                                background: 'white',
+                                padding: 14,
+                                borderRadius: 8,
+                                borderLeft: '4px solid #22c55e',
+                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                              }}>
+                                <div style={{ fontWeight: 600, color: '#166534', marginBottom: 8, fontSize: 13 }}>
+                                  📌 Línea coincidente {idx + 1}
+                                </div>
+                                <div style={{
+                                  fontSize: 14,
+                                  lineHeight: 1.5,
+                                  color: '#1f2937',
+                                  marginBottom: 8
+                                }}>
+                                  {highlightKeywords(linea.descripcion, linea.palabrasEncontradas).map((part, pidx) => (
+                                    <span
+                                      key={pidx}
+                                      style={{
+                                        background: part.highlighted ? '#22c55e' : 'transparent',
+                                        color: part.highlighted ? 'white' : '#1f2937',
+                                        fontWeight: part.highlighted ? 700 : 400,
+                                        padding: part.highlighted ? '2px 6px' : '0',
+                                        borderRadius: part.highlighted ? 4 : 0,
+                                        boxShadow: part.highlighted ? '0 2px 4px rgba(34, 197, 94, 0.3)' : 'none'
+                                      }}
+                                    >
+                                      {part.text}
+                                    </span>
+                                  ))}
+                                </div>
+                                {linea.presupuesto > 0 && (
+                                  <div style={{ fontSize: 12, color: '#059669', fontWeight: 600 }}>
+                                    💰 {formatMoney(linea.presupuesto)}
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                                  {linea.palabrasEncontradas.map(palabra => (
+                                    <span key={palabra} style={{
+                                      ...badge,
+                                      background: '#22c55e',
+                                      color: 'white',
+                                      fontSize: 10,
+                                      padding: '3px 8px'
+                                    }}>
+                                      ✓ {palabra}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {/* Botón para expandir si hay más de 2 líneas */}
+                            {ejemplo.lineasCoincidentes.length > 2 && (
+                              <button
+                                onClick={() => toggleExpanded(globalIndex)}
+                                style={{
+                                  background: expandido ? '#10b981' : '#d1fae5',
+                                  color: expandido ? 'white' : '#059669',
+                                  border: 'none',
+                                  borderRadius: 8,
+                                  padding: '10px 16px',
+                                  cursor: 'pointer',
+                                  fontWeight: 600,
+                                  fontSize: 13
+                                }}
+                              >
+                                {expandido 
+                                  ? '▲ Mostrar menos' 
+                                  : `▼ Ver ${ejemplo.lineasCoincidentes.length - 2} líneas más`
+                                }
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Palabras coincidentes generales */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+                      <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>
+                        Palabras clave detectadas en este cartel:
                       </span>
-                    ))}
+                      {ejemplo.palabrasCoincidentes.map(palabra => (
+                        <span key={palabra} style={{
+                          ...badge,
+                          background: ejemplo.tipoCoincidencia === 'cartel' ? '#f59e0b' : '#22c55e',
+                          color: 'white',
+                          fontSize: 11,
+                          padding: '4px 10px'
+                        }}>
+                          ✓ {palabra}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Paginación */}
@@ -312,7 +517,7 @@ export default function DetailedCategoryModal({ category, onClose }: DetailedCat
                 
                 <div style={{ display: 'flex', gap: 6 }}>
                   {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                    let pageNum;
+                    let pageNum: number;
                     if (totalPages <= 7) {
                       pageNum = i;
                     } else if (currentPage < 3) {

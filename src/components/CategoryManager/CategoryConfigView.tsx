@@ -147,104 +147,459 @@ export const CategoryConfigView: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-          <Settings size={32} color="#3498db" />
-          <h2 style={{ margin: 0, fontSize: '28px', fontWeight: 700 }}>
+    <div style={{ 
+      padding: '0',
+      maxWidth: '1800px', 
+      margin: '0 auto',
+      minHeight: '100vh'
+    }}>
+      {/* Header Premium con Glassmorphism */}
+      <div style={{ 
+        marginBottom: '48px',
+        background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.98) 0%, rgba(29, 78, 216, 0.95) 50%, rgba(37, 99, 235, 0.92) 100%)',
+        backdropFilter: 'blur(25px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+        padding: '48px 60px',
+        boxShadow: `
+          0 20px 60px rgba(30, 58, 138, 0.5),
+          0 10px 30px rgba(29, 78, 216, 0.4),
+          0 5px 15px rgba(0, 0, 0, 0.3),
+          inset 0 1px 0 rgba(255, 255, 255, 0.5),
+          inset 0 -1px 0 rgba(0, 0, 0, 0.3)
+        `,
+        borderBottom: '3px solid rgba(255, 255, 255, 0.4)',
+        position: 'relative',
+        overflow: 'hidden',
+        perspective: '1500px',
+        transformStyle: 'preserve-3d',
+        animation: 'fadeInDown 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        willChange: 'transform, opacity'
+      }}>
+        {/* Shimmer Effect */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '3px',
+          background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 3s linear infinite',
+          willChange: 'background-position'
+        }} />
+
+        {/* Gradient Background Layers */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: `
+            radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.3) 0%, transparent 50%),
+            radial-gradient(circle at 80% 60%, rgba(96, 165, 250, 0.25) 0%, transparent 50%),
+            radial-gradient(circle at 50% 50%, rgba(37, 99, 235, 0.2) 0%, transparent 60%)
+          `,
+          pointerEvents: 'none',
+          mixBlendMode: 'overlay',
+          animation: 'pulseGlow 4s ease-in-out infinite',
+          willChange: 'opacity'
+        }} />
+
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '20px', 
+          marginBottom: '16px',
+          position: 'relative',
+          zIndex: 1,
+          transform: 'translateZ(30px)'
+        }}>
+          <div
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.2) rotate(10deg)';
+              e.currentTarget.style.filter = 'drop-shadow(0 0 20px rgba(255, 255, 255, 0.8))';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
+              e.currentTarget.style.filter = 'none';
+            }}
+            style={{
+              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              willChange: 'transform'
+            }}
+          >
+            <Settings size={48} color="white" strokeWidth={2.5} />
+          </div>
+          <h2 style={{ 
+            margin: 0, 
+            fontSize: '3.2em', 
+            fontWeight: 900,
+            color: 'white',
+            textShadow: `
+              0 2px 4px rgba(0, 0, 0, 0.3),
+              0 4px 8px rgba(0, 0, 0, 0.2),
+              0 8px 16px rgba(0, 0, 0, 0.1),
+              0 0 40px rgba(255, 255, 255, 0.3)
+            `,
+            letterSpacing: '-1.5px',
+            animation: 'scaleIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both',
+            willChange: 'transform'
+          }}>
             Configuración de Categorías
           </h2>
         </div>
-        <p style={{ color: '#666', fontSize: '16px', margin: 0 }}>
+        <p style={{ 
+          color: 'rgba(255, 255, 255, 0.95)', 
+          fontSize: '1.2em', 
+          margin: 0,
+          fontWeight: 600,
+          textShadow: `
+            0 1px 2px rgba(0, 0, 0, 0.3),
+            0 2px 4px rgba(0, 0, 0, 0.2),
+            0 0 20px rgba(255, 255, 255, 0.2)
+          `,
+          letterSpacing: '0.3px',
+          position: 'relative',
+          zIndex: 1,
+          transform: 'translateZ(20px)',
+          animation: 'fadeInUp 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s both',
+          willChange: 'transform, opacity'
+        }}>
           Active o desactive categorías para controlar cómo se clasifican los carteles.
           Los cambios afectarán todos los dashboards y análisis.
         </p>
+
+        <style>{`
+          @keyframes fadeInDown {
+            from {
+              opacity: 0;
+              transform: translateY(-30px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          @keyframes shimmer {
+            0% { background-position: -200% center; }
+            100% { background-position: 200% center; }
+          }
+          @keyframes pulseGlow {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 0.9; }
+          }
+          @keyframes scaleIn {
+            from {
+              opacity: 0;
+              transform: scale(0.9) rotateX(10deg);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1) rotateX(0deg);
+            }
+          }
+          @keyframes fadeInUp {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
       </div>
 
-      {/* Alert de advertencia */}
+      <div style={{ padding: '0 60px 60px' }}>
+      {/* Alert de advertencia con Glassmorphism */}
       <div style={{
-        background: '#fff3cd',
-        border: '1px solid #ffc107',
-        borderRadius: '12px',
-        padding: '16px',
-        marginBottom: '24px',
+        background: 'linear-gradient(135deg, rgba(180, 83, 9, 0.95) 0%, rgba(217, 119, 6, 0.92) 50%, rgba(245, 158, 11, 0.9) 100%)',
+        backdropFilter: 'blur(25px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+        border: '3px solid rgba(255, 255, 255, 0.4)',
+        borderRadius: '20px',
+        padding: '24px',
+        marginBottom: '32px',
         display: 'flex',
-        gap: '12px',
-        alignItems: 'start'
+        gap: '16px',
+        alignItems: 'start',
+        boxShadow: `
+          0 20px 60px rgba(180, 83, 9, 0.35),
+          0 8px 16px rgba(0, 0, 0, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3),
+          inset 0 -1px 0 rgba(0, 0, 0, 0.2)
+        `,
+        animation: 'fadeInUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both',
+        willChange: 'transform, opacity'
       }}>
-        <AlertCircle size={24} color="#ff9800" />
+        <AlertCircle size={28} color="white" strokeWidth={2.5} />
         <div>
-          <div style={{ fontWeight: 600, marginBottom: '4px', color: '#856404' }}>
+          <div style={{ 
+            fontWeight: 700, 
+            marginBottom: '8px', 
+            color: 'white',
+            fontSize: '1.1em',
+            letterSpacing: '0.02em',
+            textShadow: '0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)'
+          }}>
             ⚠️ Impacto en Dashboards
           </div>
-          <div style={{ fontSize: '14px', color: '#856404' }}>
+          <div style={{ 
+            fontSize: '0.95em', 
+            color: 'rgba(255, 255, 255, 0.95)', 
+            lineHeight: 1.6,
+            textShadow: '0 1px 4px rgba(0, 0, 0, 0.3)'
+          }}>
             Al desactivar una categoría, los carteles que pertenecían a ella se reclasificarán 
             automáticamente. Esto afectará gráficos, estadísticas y filtros en todo el sistema.
           </div>
         </div>
       </div>
 
-      {/* Estadísticas */}
+      {/* Estadísticas con Glassmorphism */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '16px',
-        marginBottom: '24px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '20px',
+        marginBottom: '32px',
+        animation: 'fadeInUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s both',
+        willChange: 'transform, opacity'
       }}>
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          border: '1px solid #e0e0e0',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-        }}>
-          <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Total Categorías</div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#2c3e50' }}>{stats.total}</div>
+        <div 
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-8px) scale(1.03) rotateX(5deg)';
+            e.currentTarget.style.boxShadow = `
+              0 16px 40px rgba(44, 62, 80, 0.25),
+              0 8px 20px rgba(0, 0, 0, 0.15),
+              inset 0 1px 0 rgba(255, 255, 255, 0.5)
+            `;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) scale(1) rotateX(0)';
+            e.currentTarget.style.boxShadow = `
+              0 8px 24px rgba(44, 62, 80, 0.15),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3)
+            `;
+          }}
+          style={{
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.9) 100%)',
+            backdropFilter: 'blur(20px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+            padding: '28px',
+            borderRadius: '16px',
+            border: '1px solid rgba(44, 62, 80, 0.15)',
+            boxShadow: `
+              0 8px 24px rgba(44, 62, 80, 0.15),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3)
+            `,
+            transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            willChange: 'transform, box-shadow'
+          }}>
+          <div style={{ 
+            fontSize: '0.85em', 
+            color: '#1e293b', 
+            marginBottom: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.5px',
+            textTransform: 'uppercase'
+          }}>Total Categorías</div>
+          <div style={{ 
+            fontSize: '2.8em', 
+            fontWeight: 800, 
+            color: '#2c3e50',
+            letterSpacing: '-1px',
+            textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+          }}>{stats.total}</div>
         </div>
 
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          border: '1px solid #e0e0e0',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-        }}>
-          <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Del Sistema</div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#3498db' }}>{stats.sistema}</div>
+        <div
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-8px) scale(1.03) rotateX(5deg)';
+            e.currentTarget.style.boxShadow = `
+              0 16px 40px rgba(30, 58, 138, 0.35),
+              0 8px 20px rgba(59, 130, 246, 0.25),
+              inset 0 1px 0 rgba(255, 255, 255, 0.5)
+            `;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) scale(1) rotateX(0)';
+            e.currentTarget.style.boxShadow = `
+              0 8px 24px rgba(30, 58, 138, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3)
+            `;
+          }}
+          style={{
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(239, 246, 255, 0.92) 100%)',
+            backdropFilter: 'blur(20px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+            padding: '28px',
+            borderRadius: '16px',
+            border: '2px solid rgba(59, 130, 246, 0.3)',
+            boxShadow: `
+              0 8px 24px rgba(30, 58, 138, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3)
+            `,
+            transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            willChange: 'transform, box-shadow'
+          }}>
+          <div style={{ 
+            fontSize: '0.85em', 
+            color: '#1e293b', 
+            marginBottom: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.5px',
+            textTransform: 'uppercase'
+          }}>Del Sistema</div>
+          <div style={{ 
+            fontSize: '2.8em', 
+            fontWeight: 800, 
+            color: '#3498db',
+            letterSpacing: '-1px',
+            textShadow: '0 2px 4px rgba(52, 152, 219, 0.2)'
+          }}>{stats.sistema}</div>
         </div>
 
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          border: '1px solid #e0e0e0',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-        }}>
-          <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Manuales</div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#9b59b6' }}>{stats.manual}</div>
+        <div
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-8px) scale(1.03) rotateX(5deg)';
+            e.currentTarget.style.boxShadow = `
+              0 16px 40px rgba(126, 34, 206, 0.35),
+              0 8px 20px rgba(147, 51, 234, 0.25),
+              inset 0 1px 0 rgba(255, 255, 255, 0.5)
+            `;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) scale(1) rotateX(0)';
+            e.currentTarget.style.boxShadow = `
+              0 8px 24px rgba(126, 34, 206, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3)
+            `;
+          }}
+          style={{
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 245, 255, 0.92) 100%)',
+            backdropFilter: 'blur(20px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+            padding: '28px',
+            borderRadius: '16px',
+            border: '2px solid rgba(147, 51, 234, 0.3)',
+            boxShadow: `
+              0 8px 24px rgba(126, 34, 206, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3)
+            `,
+            transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            willChange: 'transform, box-shadow'
+          }}>
+          <div style={{ 
+            fontSize: '0.85em', 
+            color: '#1e293b', 
+            marginBottom: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.5px',
+            textTransform: 'uppercase'
+          }}>Manuales</div>
+          <div style={{ 
+            fontSize: '2.8em', 
+            fontWeight: 800, 
+            color: '#7e22ce',
+            letterSpacing: '-1px',
+            textShadow: '0 2px 4px rgba(126, 34, 206, 0.2)'
+          }}>{stats.manual}</div>
         </div>
 
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          border: '1px solid #e0e0e0',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-        }}>
-          <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Activas</div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#27ae60' }}>{stats.activas}</div>
+        <div
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-8px) scale(1.03) rotateX(5deg)';
+            e.currentTarget.style.boxShadow = `
+              0 16px 40px rgba(22, 163, 74, 0.35),
+              0 8px 20px rgba(34, 197, 94, 0.25),
+              inset 0 1px 0 rgba(255, 255, 255, 0.5)
+            `;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) scale(1) rotateX(0)';
+            e.currentTarget.style.boxShadow = `
+              0 8px 24px rgba(22, 163, 74, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3)
+            `;
+          }}
+          style={{
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 253, 244, 0.92) 100%)',
+            backdropFilter: 'blur(20px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+            padding: '28px',
+            borderRadius: '16px',
+            border: '2px solid rgba(34, 197, 94, 0.3)',
+            boxShadow: `
+              0 8px 24px rgba(22, 163, 74, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3)
+            `,
+            transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            willChange: 'transform, box-shadow'
+          }}>
+          <div style={{ 
+            fontSize: '0.85em', 
+            color: '#1e293b', 
+            marginBottom: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.5px',
+            textTransform: 'uppercase'
+          }}>Activas</div>
+          <div style={{ 
+            fontSize: '2.8em', 
+            fontWeight: 800, 
+            color: '#16a34a',
+            letterSpacing: '-1px',
+            textShadow: '0 2px 4px rgba(22, 163, 74, 0.2)'
+          }}>{stats.activas}</div>
         </div>
 
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          border: '1px solid #e0e0e0',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-        }}>
-          <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Inactivas</div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#e74c3c' }}>{stats.inactivas}</div>
+        <div
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-8px) scale(1.03) rotateX(5deg)';
+            e.currentTarget.style.boxShadow = `
+              0 16px 40px rgba(220, 38, 38, 0.35),
+              0 8px 20px rgba(239, 68, 68, 0.25),
+              inset 0 1px 0 rgba(255, 255, 255, 0.5)
+            `;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) scale(1) rotateX(0)';
+            e.currentTarget.style.boxShadow = `
+              0 8px 24px rgba(220, 38, 38, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3)
+            `;
+          }}
+          style={{
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(254, 242, 242, 0.92) 100%)',
+            backdropFilter: 'blur(20px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+            padding: '28px',
+            borderRadius: '16px',
+            border: '2px solid rgba(239, 68, 68, 0.3)',
+            boxShadow: `
+              0 8px 24px rgba(220, 38, 38, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3)
+            `,
+            transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            willChange: 'transform, box-shadow'
+          }}>
+          <div style={{ 
+            fontSize: '0.85em', 
+            color: '#1e293b', 
+            marginBottom: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.5px',
+            textTransform: 'uppercase'
+          }}>Inactivas</div>
+          <div style={{ 
+            fontSize: '2.8em', 
+            fontWeight: 800, 
+            color: '#dc2626',
+            letterSpacing: '-1px',
+            textShadow: '0 2px 4px rgba(220, 38, 38, 0.2)'
+          }}>{stats.inactivas}</div>
         </div>
       </div>
 
@@ -271,7 +626,7 @@ export const CategoryConfigView: React.FC = () => {
               style={{
                 width: '100%',
                 padding: '12px 12px 12px 44px',
-                border: '1px solid #ddd',
+                border: '2px solid rgba(30, 58, 138, 0.3)',
                 borderRadius: '8px',
                 fontSize: '14px',
                 outline: 'none'
@@ -291,10 +646,11 @@ export const CategoryConfigView: React.FC = () => {
               onChange={(e) => setFilterType(e.target.value as any)}
               style={{
                 padding: '8px 12px',
-                border: '1px solid #ddd',
+                border: '2px solid rgba(30, 58, 138, 0.3)',
                 borderRadius: '6px',
                 fontSize: '14px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                color: '#1e293b'
               }}
             >
               <option value="all">Todas</option>
@@ -311,10 +667,11 @@ export const CategoryConfigView: React.FC = () => {
               onChange={(e) => setFilterStatus(e.target.value as any)}
               style={{
                 padding: '8px 12px',
-                border: '1px solid #ddd',
+                border: '2px solid rgba(30, 58, 138, 0.3)',
                 borderRadius: '6px',
                 fontSize: '14px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                color: '#1e293b'
               }}
             >
               <option value="all">Todas</option>
@@ -620,6 +977,7 @@ export const CategoryConfigView: React.FC = () => {
           onCancel={() => setEditingSubcategories(null)}
         />
       )}
+      </div>
     </div>
   );
 };

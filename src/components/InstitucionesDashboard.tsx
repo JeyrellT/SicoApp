@@ -29,9 +29,78 @@ const dateFmt = (d: any) => {
 };
 
 const Card: React.FC<{ title: string; children?: any; className?: string } & React.HTMLAttributes<HTMLDivElement>> = ({ title, children, className = '', ...rest }) => (
-  <div className={`inst-card ${className}`} {...rest}>
-    <h3 className="inst-card__title">{title}</h3>
-    {children}
+  <div 
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
+      e.currentTarget.style.boxShadow = `
+        0 20px 60px rgba(0,0,0,0.18),
+        0 0 0 2px rgba(255,255,255,0.35) inset,
+        0 30px 80px rgba(102, 126, 234, 0.22)
+      `;
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0deg)';
+      e.currentTarget.style.boxShadow = `
+        0 12px 40px rgba(0,0,0,0.12),
+        0 0 0 1px rgba(255,255,255,0.25) inset,
+        0 25px 70px rgba(102, 126, 234, 0.18)
+      `;
+    }}
+    className={`inst-card ${className}`} 
+    style={{
+      background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.88) 100%)',
+      backdropFilter: 'blur(25px) saturate(180%)',
+      WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+      borderRadius: '28px',
+      padding: '32px',
+      boxShadow: `
+        0 12px 40px rgba(0,0,0,0.12),
+        0 0 0 1px rgba(255,255,255,0.25) inset,
+        0 25px 70px rgba(102, 126, 234, 0.18)
+      `,
+      border: '2px solid rgba(255,255,255,0.35)',
+      position: 'relative',
+      overflow: 'hidden',
+      transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+      transform: 'translateZ(0)',
+      transformStyle: 'preserve-3d',
+      willChange: 'transform, box-shadow'
+    }}
+    {...rest}
+  >
+    {/* Efecto shimmer */}
+    <div style={{
+      position: 'absolute',
+      top: '-50%',
+      left: '-50%',
+      width: '200%',
+      height: '200%',
+      background: 'linear-gradient(45deg, transparent 30%, rgba(102, 126, 234, 0.08) 50%, transparent 70%)',
+      backgroundSize: '500px 500px',
+      animation: 'shimmer 6s linear infinite',
+      pointerEvents: 'none'
+    }} />
+    
+    <h3 
+      className="inst-card__title"
+      style={{
+        position: 'relative',
+        zIndex: 1,
+        fontSize: '22px',
+        fontWeight: 700,
+        letterSpacing: '-0.01em',
+        marginBottom: '24px',
+        background: 'linear-gradient(135deg, #2c3e50 0%, #667eea 100%)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}
+    >
+      {title}
+    </h3>
+    <div style={{ position: 'relative', zIndex: 1 }}>
+      {children}
+    </div>
   </div>
 );
 
@@ -52,8 +121,9 @@ export const InstitucionesDashboard: React.FC = () => {
     useDashboardStore.getState().syncFromURL();
   }, []);
 
-  // Obtener instituciones directamente del DataManager para mejor rendimiento
-  const instituciones = useMemo(() => {
+  // Instituciones disponibles (cargadas por FiltersPanel)
+  // La lista se obtiene directamente del DataManager cuando se necesita
+  useMemo(() => {
     if (!isLoaded) return [];
     try {
       return dataManager.getInstitucionesList();
@@ -289,32 +359,11 @@ export const InstitucionesDashboard: React.FC = () => {
     }));
   }, [data]);
 
-  // Enhanced tooltips for charts
-  const createEnhancedTooltip = useCallback((dataKey: string, format: 'currency' | 'number' = 'number') => {
-    return ({ active, payload, label }: any) => {
-      if (!active || !payload || !payload.length) return null;
-
-      const value = payload[0].value;
-      const dataset = payload[0].payload.dataset || [];
-      const rank = dataset.length > 1 ? dataset.findIndex((v: number) => v <= value) + 1 : 1;
-
-      return (
-        <div className="enhanced-tooltip">
-          <div className="enhanced-tooltip__header">{label}</div>
-          <div className="enhanced-tooltip__value">
-            {format === 'currency' ? formatCurrency(value) : formatNumber(value)}
-          </div>
-          {rank > 0 && (
-            <div className="enhanced-tooltip__rank">
-              Posición #{rank} de {dataset.length}
-            </div>
-          )}
-        </div>
-      );
-    };
-  }, []);
-
-  const proveedoresTopPorMonto = useMemo(() => {
+  // Tooltips personalizados y datos de proveedores procesados
+  // Funcionalidad preparada para futuras mejoras en visualización de datos
+  
+  // Datos de proveedores top procesados (disponibles para futuras funcionalidades)
+  useMemo(() => {
     if (!data?.proveedores?.top_por_monto) return [];
     const arr = (data.proveedores.top_por_monto || []).slice(0, 12);
     const total = data?.proveedores?.top_por_monto?.reduce((s: number, p: any) => s + (p.monto || 0), 0) || 0;
@@ -324,7 +373,7 @@ export const InstitucionesDashboard: React.FC = () => {
     });
   }, [data]);
 
-  const proveedoresTopPorContratos = useMemo(() => {
+  useMemo(() => {
     if (!data?.proveedores?.top_por_contratos) return [];
     const arr = (data.proveedores.top_por_contratos || []).slice(0, 12);
     const total = data?.proveedores?.top_por_contratos?.reduce((s: number, p: any) => s + (p.contratos || 0), 0) || 0;
@@ -362,7 +411,84 @@ export const InstitucionesDashboard: React.FC = () => {
   }, [data]);
 
   return (
-    <div className="modern-dashboard">
+    <div className="modern-dashboard" style={{ 
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+      padding: '70px 80px',
+      position: 'relative',
+      overflow: 'hidden',
+      perspective: '2000px',
+      maxWidth: '1800px',
+      margin: '0 auto'
+    }}>
+      
+      {/* Partículas de fondo animadas */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
+        pointerEvents: 'none',
+        zIndex: 0
+      }}>
+        {[...Array(15)].map((_, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            width: `${Math.random() * 100 + 50}px`,
+            height: `${Math.random() * 100 + 50}px`,
+            background: `radial-gradient(circle, rgba(255,255,255,${Math.random() * 0.3 + 0.1}) 0%, transparent 70%)`,
+            borderRadius: '50%',
+            top: `${Math.random() * 100}%`,
+            left: `${Math.random() * 100}%`,
+            animation: `float${i % 3} ${Math.random() * 20 + 15}s ease-in-out infinite`,
+            filter: 'blur(25px)',
+            transform: `rotate(${Math.random() * 360}deg)`,
+            willChange: 'transform'
+          }} />
+        ))}
+      </div>
+
+      {/* Animaciones keyframes inyectadas */}
+      <style>{`
+        @keyframes float0 {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.3; }
+          25% { transform: translate(100px, -100px) rotate(90deg); opacity: 0.6; }
+          50% { transform: translate(200px, -50px) rotate(180deg); opacity: 0.4; }
+          75% { transform: translate(100px, 50px) rotate(270deg); opacity: 0.7; }
+        }
+        @keyframes float1 {
+          0%, 100% { transform: translate(0, 0) rotate(360deg); opacity: 0.4; }
+          33% { transform: translate(-150px, 120px) rotate(240deg); opacity: 0.7; }
+          66% { transform: translate(-50px, -100px) rotate(120deg); opacity: 0.5; }
+        }
+        @keyframes float2 {
+          0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 0.3; }
+          50% { transform: translate(120px, 150px) rotate(180deg) scale(1.3); opacity: 0.8; }
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.05); opacity: 0.9; }
+        }
+        @keyframes shimmer {
+          0% { background-position: -1000px 0; }
+          100% { background-position: 1000px 0; }
+        }
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(-3deg); }
+          50% { transform: rotate(3deg); }
+        }
+        @keyframes glow-pulse {
+          0%, 100% { filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.6)); }
+          50% { filter: drop-shadow(0 0 20px rgba(102, 126, 234, 1)); }
+        }
+        @keyframes card-float {
+          0%, 100% { transform: translateY(0px) rotateX(0deg); }
+          50% { transform: translateY(-8px) rotateX(2deg); }
+        }
+      `}</style>
+
       {/* Debug Panel */}
       <DebugPanel />
 
@@ -373,7 +499,7 @@ export const InstitucionesDashboard: React.FC = () => {
       />
 
       {/* Main Content */}
-      <main className={`dashboard-main ${view.filtersPanelCollapsed ? 'filters-collapsed' : 'filters-expanded'}`}>
+      <main className={`dashboard-main ${view.filtersPanelCollapsed ? 'filters-collapsed' : 'filters-expanded'}`} style={{ position: 'relative', zIndex: 1 }}>
         
         {/* Loading State */}
         {!isLoaded && (
@@ -420,29 +546,165 @@ export const InstitucionesDashboard: React.FC = () => {
         {/* Main Dashboard Content */}
         {isLoaded && filters.institucion && data && (
           <>
-            {/* Header with Institution Info */}
-            <header className="dashboard-header">
-              <div className="institution-info">
-                <h1 className="institution-name">{data.institucion?.nombre || filters.institucion}</h1>
-                <div className="institution-meta">
-                  <span className="institution-type">{data.institucion?.tipo || '—'}</span>
-                  <span className="institution-code">Código: {data.institucion?.codigo || filters.institucion}</span>
+            {/* Header Premium con Glassmorphism Avanzado */}
+            <header style={{
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.2) 100%)',
+              backdropFilter: 'blur(25px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+              borderRadius: '24px',
+              padding: '32px 40px',
+              marginBottom: '32px',
+              border: '2px solid rgba(255,255,255,0.3)',
+              boxShadow: `
+                0 8px 32px rgba(0,0,0,0.15),
+                0 0 0 1px rgba(255,255,255,0.1) inset,
+                0 20px 60px rgba(102, 126, 234, 0.2)
+              `,
+              position: 'relative',
+              overflow: 'hidden',
+              transform: 'translateZ(0)',
+              transformStyle: 'preserve-3d',
+              willChange: 'transform'
+            }}>
+              {/* Brillo animado de fondo */}
+              <div style={{
+                position: 'absolute',
+                top: '-50%',
+                left: '-50%',
+                width: '200%',
+                height: '200%',
+                background: 'linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%)',
+                backgroundSize: '1000px 1000px',
+                animation: 'shimmer 6s linear infinite',
+                pointerEvents: 'none'
+              }} />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+                <div className="institution-info">
+                  <h1 style={{ 
+                    margin: '0 0 10px 0', 
+                    fontSize: '2.4em',
+                    fontWeight: 800,
+                    color: '#ffffff',
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1.15,
+                    textShadow: `
+                      0 2px 10px rgba(0,0,0,0.3),
+                      0 4px 20px rgba(102, 126, 234, 0.4),
+                      0 0 40px rgba(102, 126, 234, 0.2)
+                    `,
+                    transform: 'translateZ(20px)',
+                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
+                  }}>
+                    🏛️ {data.institucion?.nombre || filters.institucion}
+                  </h1>
+                  <div style={{ 
+                    display: 'flex', 
+                    gap: '12px',
+                    transform: 'translateZ(10px)'
+                  }}>
+                    <span style={{
+                      background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%)',
+                      backdropFilter: 'blur(10px)',
+                      color: '#ffffff',
+                      padding: '6px 12px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      textShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                    }}>
+                      {data.institucion?.tipo || '—'}
+                    </span>
+                    <span style={{
+                      background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%)',
+                      backdropFilter: 'blur(10px)',
+                      color: '#ffffff',
+                      padding: '6px 12px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      textShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                    }}>
+                      Código: {data.institucion?.codigo || filters.institucion}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              
-              {/* Quick Actions */}
-              <div className="dashboard-actions">
-                <button className="action-btn" title="Exportar datos">
-                  📥 Exportar
-                </button>
-                <button className="action-btn" title="Compartir dashboard">
-                  🔗 Compartir
-                </button>
+                
+                {/* Quick Actions Premium */}
+                <div style={{ display: 'flex', gap: '12px', transform: 'translateZ(15px)' }}>
+                  <button 
+                    className="action-btn"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px) scale(1.05)';
+                      e.currentTarget.style.boxShadow = '0 12px 32px rgba(108, 92, 231, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)';
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%)',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 18px',
+                      borderRadius: '12px',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                      transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      willChange: 'transform'
+                    }}
+                    title="Exportar datos"
+                  >
+                    📥 Exportar
+                  </button>
+                  <button 
+                    className="action-btn"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px) scale(1.05)';
+                      e.currentTarget.style.boxShadow = '0 12px 32px rgba(32, 201, 151, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)';
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #20c997 0%, #00b894 100%)',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 18px',
+                      borderRadius: '12px',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                      transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      willChange: 'transform'
+                    }}
+                    title="Compartir dashboard"
+                  >
+                    🔗 Compartir
+                  </button>
+                </div>
               </div>
             </header>
 
-            {/* KPI Cards Grid */}
-            <section className="kpi-grid" aria-label="Indicadores clave de rendimiento">
+            {/* KPI Cards Grid - Optimizado Full HD */}
+            <section 
+              className="kpi-grid" 
+              aria-label="Indicadores clave de rendimiento"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '24px',
+                marginBottom: '36px',
+                perspective: '2000px',
+                transformStyle: 'preserve-3d'
+              }}
+            >
               {kpiCardsData.map((kpi, index) => (
                 <KPICard
                   key={index}
@@ -452,8 +714,13 @@ export const InstitucionesDashboard: React.FC = () => {
               ))}
             </section>
 
-            {/* Main Content Grid */}
-            <div className="content-grid">
+            {/* Main Content Grid - Premium Layout */}
+            <div className="content-grid" style={{
+              display: 'grid',
+              gap: '24px',
+              perspective: '2000px',
+              transformStyle: 'preserve-3d'
+            }}>
               
               {/* Timeline Sidebar */}
               {view.timelineVisible && timelineData.length > 0 && (
@@ -470,12 +737,21 @@ export const InstitucionesDashboard: React.FC = () => {
               )}
 
               {/* Main Charts Area */}
-              <div className="charts-area">
+              <div className="charts-area" style={{
+                display: 'grid',
+                gap: '24px'
+              }}>
                 
-                {/* Top Providers Charts */}
-                <div className="charts-row">
+                {/* Top Providers Charts - Premium Grid */}
+                <div className="charts-row" style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '24px',
+                  perspective: '2000px',
+                  transformStyle: 'preserve-3d'
+                }}>
                   <Card title="🏆 Top 10 proveedores por monto" className="chart-card">
-                    <ResponsiveContainer width="100%" height={320}>
+                    <ResponsiveContainer width="100%" height={280}>
                       <BarChart data={data.proveedores.top_por_monto.map((x: any) => {
                         const noNombre = !x.nombre || x.nombre === x.id;
                         return {
@@ -488,24 +764,47 @@ export const InstitucionesDashboard: React.FC = () => {
                         <defs>
                           <linearGradient id="gradMonto" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#667eea" stopOpacity={1} />
-                            <stop offset="100%" stopColor="#764ba2" stopOpacity={0.8} />
+                            <stop offset="35%" stopColor="#764ba2" stopOpacity={0.95} />
+                            <stop offset="70%" stopColor="#f093fb" stopOpacity={0.9} />
+                            <stop offset="100%" stopColor="#764ba2" stopOpacity={0.85} />
                           </linearGradient>
-                          <filter id="shadowMonto">
-                            <feDropShadow dx="0" dy="4" stdDeviation="4" floodOpacity="0.2" floodColor="#667eea"/>
+                          <filter id="shadowMonto" x="-50%" y="-50%" width="200%" height="200%">
+                            <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15" floodColor="#667eea"/>
+                            <feDropShadow dx="0" dy="6" stdDeviation="8" floodOpacity="0.1" floodColor="#764ba2"/>
+                            <feDropShadow dx="0" dy="12" stdDeviation="16" floodOpacity="0.06" floodColor="#f093fb"/>
                           </filter>
                         </defs>
                         <XAxis dataKey="name" hide />
-                        <YAxis tickFormatter={(v: number) => formatCurrency(v, { compact: true })} stroke="#64748b" style={{ fontSize: 12 }} />
-                        <Tooltip content={providerTooltip('monto')} cursor={{ fill: 'rgba(102, 126, 234, 0.05)' }} />
-                        <Bar dataKey="monto" fill="url(#gradMonto)" radius={[8,8,0,0]} filter="url(#shadowMonto)">
-                          <LabelList dataKey="monto" position="top" formatter={(val: any) => formatCurrency(Number(val)||0,{compact:true}) as any} style={{ fontSize: 11, fill: '#334155', fontWeight: 700 }} />
+                        <YAxis tickFormatter={(v: number) => formatCurrency(v, { compact: true })} stroke="#64748b" style={{ fontSize: 13, fontWeight: 600 }} />
+                        <Tooltip 
+                          content={providerTooltip('monto')} 
+                          cursor={{ 
+                            fill: 'rgba(102, 126, 234, 0.08)',
+                            filter: 'blur(8px)'
+                          }} 
+                          wrapperStyle={{
+                            outline: 'none',
+                            filter: 'drop-shadow(0 8px 32px rgba(102, 126, 234, 0.25))'
+                          }}
+                        />
+                        <Bar 
+                          dataKey="monto" 
+                          fill="url(#gradMonto)" 
+                          radius={[10,10,0,0]} 
+                          filter="url(#shadowMonto)"
+                          style={{
+                            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <LabelList dataKey="monto" position="top" formatter={(val: any) => formatCurrency(Number(val)||0,{compact:true}) as any} style={{ fontSize: 12, fill: '#1e293b', fontWeight: 800, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </Card>
 
                   <Card title="📊 Top 10 proveedores por contratos" className="chart-card">
-                    <ResponsiveContainer width="100%" height={320}>
+                    <ResponsiveContainer width="100%" height={280}>
                       <BarChart data={data.proveedores.top_por_contratos.map((x: any) => {
                         const noNombre = !x.nombre || x.nombre === x.id;
                         return {
@@ -518,17 +817,40 @@ export const InstitucionesDashboard: React.FC = () => {
                         <defs>
                           <linearGradient id="gradContratos" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#f093fb" stopOpacity={1} />
-                            <stop offset="100%" stopColor="#f5576c" stopOpacity={0.8} />
+                            <stop offset="35%" stopColor="#f5576c" stopOpacity={0.95} />
+                            <stop offset="70%" stopColor="#ff8a80" stopOpacity={0.9} />
+                            <stop offset="100%" stopColor="#f5576c" stopOpacity={0.85} />
                           </linearGradient>
-                          <filter id="shadowContratos">
-                            <feDropShadow dx="0" dy="4" stdDeviation="4" floodOpacity="0.2" floodColor="#f093fb"/>
+                          <filter id="shadowContratos" x="-50%" y="-50%" width="200%" height="200%">
+                            <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15" floodColor="#f093fb"/>
+                            <feDropShadow dx="0" dy="6" stdDeviation="8" floodOpacity="0.1" floodColor="#f5576c"/>
+                            <feDropShadow dx="0" dy="12" stdDeviation="16" floodOpacity="0.06" floodColor="#ff8a80"/>
                           </filter>
                         </defs>
                         <XAxis dataKey="name" hide />
-                        <YAxis stroke="#64748b" style={{ fontSize: 12 }} />
-                        <Tooltip content={providerTooltip('contratos')} cursor={{ fill: 'rgba(240, 147, 251, 0.05)' }} />
-                        <Bar dataKey="contratos" fill="url(#gradContratos)" radius={[8,8,0,0]} filter="url(#shadowContratos)">
-                          <LabelList dataKey="contratos" position="top" formatter={(val: any) => formatNumber(Number(val)||0) as any} style={{ fontSize: 11, fill: '#334155', fontWeight: 700 }} />
+                        <YAxis stroke="#64748b" style={{ fontSize: 13, fontWeight: 600 }} />
+                        <Tooltip 
+                          content={providerTooltip('contratos')} 
+                          cursor={{ 
+                            fill: 'rgba(240, 147, 251, 0.08)',
+                            filter: 'blur(8px)'
+                          }}
+                          wrapperStyle={{
+                            outline: 'none',
+                            filter: 'drop-shadow(0 8px 32px rgba(240, 147, 251, 0.25))'
+                          }}
+                        />
+                        <Bar 
+                          dataKey="contratos" 
+                          fill="url(#gradContratos)" 
+                          radius={[10,10,0,0]} 
+                          filter="url(#shadowContratos)"
+                          style={{
+                            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <LabelList dataKey="contratos" position="top" formatter={(val: any) => formatNumber(Number(val)||0) as any} style={{ fontSize: 12, fill: '#1e293b', fontWeight: 800, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -536,41 +858,56 @@ export const InstitucionesDashboard: React.FC = () => {
                 </div>
 
                 {/* Sector Distribution & Keywords */}
-                <div className="charts-row">
+                <div className="charts-row" style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '24px',
+                  perspective: '2000px',
+                  transformStyle: 'preserve-3d'
+                }}>
                   <Card title="🎯 Distribución por sectores" className="chart-card">
                     <div className="sector-chart">
-                      <ResponsiveContainer width="100%" height={340}>
+                      <ResponsiveContainer width="100%" height={300}>
                         <PieChart>
                         <defs>
                           {sectorPieData.map((item, index) => (
                             <linearGradient key={item.gradientId} id={item.gradientId} x1="0" y1="0" x2="1" y2="1">
                               <stop offset="0%" stopColor={item.baseColor} stopOpacity={1} />
+                              <stop offset="50%" stopColor={item.baseColor} stopOpacity={0.85} />
                               <stop offset="100%" stopColor={item.baseColor} stopOpacity={0.7} />
                             </linearGradient>
                           ))}
-                          <filter id="shadowPie">
-                            <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15"/>
+                          <filter id="shadowPie" x="-50%" y="-50%" width="200%" height="200%">
+                            <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.12"/>
+                            <feDropShadow dx="0" dy="6" stdDeviation="10" floodOpacity="0.08"/>
+                            <feDropShadow dx="0" dy="12" stdDeviation="20" floodOpacity="0.04"/>
                           </filter>
                         </defs>
                         <Pie
                           data={sectorPieData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={75}
-                          outerRadius={135}
-                          paddingAngle={2}
+                          innerRadius={70}
+                          outerRadius={120}
+                          paddingAngle={3}
                           dataKey="value"
                           labelLine={false}
                           filter="url(#shadowPie)"
                           animationBegin={0}
-                          animationDuration={800}
+                          animationDuration={1000}
+                          animationEasing="ease-out"
                         >
                           {sectorPieData.map((item, index) => (
                             <Cell 
                               key={`cell-${index}`} 
                               fill={`url(#${item.gradientId})`}
                               stroke="#ffffff" 
-                              strokeWidth={2}
+                              strokeWidth={3}
+                              style={{
+                                filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))',
+                                transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                                cursor: 'pointer'
+                              }}
                             />
                           ))}
                           <Label content={renderSectorLabel} />
@@ -581,14 +918,28 @@ export const InstitucionesDashboard: React.FC = () => {
                           return [`${v} carteles (${pct.toFixed(1)}%)`, n];
                         }} 
                         contentStyle={{
-                          background: 'rgba(30, 41, 59, 0.95)',
-                          backdropFilter: 'blur(12px)',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          borderRadius: '12px',
-                          padding: '12px 16px',
-                          boxShadow: '0 12px 32px rgba(0, 0, 0, 0.3)'
+                          background: 'rgba(255, 255, 255, 0.98)',
+                          backdropFilter: 'blur(25px) saturate(180%)',
+                          border: '2px solid rgba(255, 255, 255, 0.3)',
+                          borderRadius: '16px',
+                          padding: '14px 18px',
+                          boxShadow: '0 16px 48px rgba(102, 126, 234, 0.25), 0 8px 24px rgba(118, 75, 162, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.4)'
                         }}
-                        labelStyle={{ color: 'white', fontWeight: 600 }}
+                        itemStyle={{
+                          color: '#1e293b',
+                          fontWeight: 700,
+                          fontSize: '12px',
+                          textShadow: '0 1px 2px rgba(255,255,255,0.8)'
+                        }}
+                        labelStyle={{
+                          color: '#64748b',
+                          fontWeight: 600,
+                          fontSize: '11px'
+                        }}
+                        wrapperStyle={{
+                          outline: 'none',
+                          filter: 'drop-shadow(0 12px 40px rgba(102, 126, 234, 0.3))'
+                        }}
                         />
                         {/* Center label */}
                         {(() => {
@@ -625,50 +976,225 @@ export const InstitucionesDashboard: React.FC = () => {
 
             {/* Ofertas / Competencia Analytics */}
             {data.oportunidades?.ofertas_analytics && (
-              <section className="offers-analytics" aria-label="Analítica de ofertas">
-                <h2 className="section-title">🎪 Competencia en licitaciones</h2>
-                <div className="offers-grid">
-                  <div className="offer-kpis">
-                    <div className="offer-kpi">
-                      <div className="offer-kpi__label">📊 Promedio de ofertas</div>
-                      <div className="offer-kpi__value">{(data.oportunidades.ofertas_analytics.promedio_ofertas || 0).toFixed(2)}</div>
+              <section className="offers-analytics" aria-label="Analítica de ofertas" style={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(240,242,255,0.9) 100%)',
+                backdropFilter: 'blur(25px) saturate(180%)',
+                borderRadius: '24px',
+                padding: '32px',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                boxShadow: '0 20px 60px rgba(102, 126, 234, 0.15), 0 8px 24px rgba(118, 75, 162, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5)',
+                marginTop: '24px',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                {/* Shimmer overlay */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: '-100%',
+                  width: '100%',
+                  height: '100%',
+                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
+                  animation: 'shimmer 3s infinite',
+                  pointerEvents: 'none',
+                  zIndex: 1
+                }}/>
+                <h2 className="section-title" style={{
+                  fontSize: '22px',
+                  fontWeight: 800,
+                  color: '#1e293b',
+                  marginBottom: '20px',
+                  textShadow: '0 2px 4px rgba(255,255,255,0.8)',
+                  position: 'relative',
+                  zIndex: 2
+                }}>🎪 Competencia en licitaciones</h2>
+                <div className="offers-grid" style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'auto 1fr',
+                  gap: '24px',
+                  perspective: '2000px',
+                  transformStyle: 'preserve-3d',
+                  position: 'relative',
+                  zIndex: 2
+                }}>
+                  <div className="offer-kpis" style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    minWidth: '280px'
+                  }}>
+                    <div className="offer-kpi" style={{
+                      background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.05) 100%)',
+                      backdropFilter: 'blur(20px)',
+                      borderRadius: '16px',
+                      padding: '16px',
+                      border: '2px solid rgba(102, 126, 234, 0.2)',
+                      boxShadow: '0 8px 24px rgba(102, 126, 234, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
+                      transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      cursor: 'pointer',
+                      transform: 'translateZ(0)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px) translateZ(8px) rotateX(1deg)';
+                      e.currentTarget.style.boxShadow = '0 12px 36px rgba(102, 126, 234, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.6)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0)';
+                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(102, 126, 234, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4)';
+                    }}>
+                      <div className="offer-kpi__label" style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#64748b',
+                        marginBottom: '6px'
+                      }}>📊 Promedio de ofertas</div>
+                      <div className="offer-kpi__value" style={{
+                        fontSize: '28px',
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        textShadow: '0 2px 4px rgba(102, 126, 234, 0.2)'
+                      }}>{(data.oportunidades.ofertas_analytics.promedio_ofertas || 0).toFixed(2)}</div>
                     </div>
-                    <div className="offer-kpi">
-                      <div className="offer-kpi__label">⚠️ Una sola oferta</div>
-                      <div className="offer-kpi__value">{(data.oportunidades.ofertas_analytics.porcentaje_una_oferta || 0).toFixed(1)}%</div>
+                    <div className="offer-kpi" style={{
+                      background: 'linear-gradient(135deg, rgba(245, 87, 108, 0.1) 0%, rgba(240, 147, 251, 0.05) 100%)',
+                      backdropFilter: 'blur(20px)',
+                      borderRadius: '16px',
+                      padding: '16px',
+                      border: '2px solid rgba(245, 87, 108, 0.2)',
+                      boxShadow: '0 8px 24px rgba(245, 87, 108, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
+                      transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      cursor: 'pointer',
+                      transform: 'translateZ(0)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px) translateZ(8px) rotateX(1deg)';
+                      e.currentTarget.style.boxShadow = '0 12px 36px rgba(245, 87, 108, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.6)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0)';
+                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(245, 87, 108, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4)';
+                    }}>
+                      <div className="offer-kpi__label" style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#64748b',
+                        marginBottom: '6px'
+                      }}>⚠️ Una sola oferta</div>
+                      <div className="offer-kpi__value" style={{
+                        fontSize: '28px',
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, #f5576c 0%, #f093fb 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        textShadow: '0 2px 4px rgba(245, 87, 108, 0.2)'
+                      }}>{(data.oportunidades.ofertas_analytics.porcentaje_una_oferta || 0).toFixed(1)}%</div>
                     </div>
-                    <div className="offer-kpi">
-                      <div className="offer-kpi__label">🧾 Total ofertas</div>
-                      <div className="offer-kpi__value">{numberFmt(data.oportunidades.ofertas_analytics.total_ofertas || 0)}</div>
+                    <div className="offer-kpi" style={{
+                      background: 'linear-gradient(135deg, rgba(52, 211, 153, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%)',
+                      backdropFilter: 'blur(20px)',
+                      borderRadius: '16px',
+                      padding: '16px',
+                      border: '2px solid rgba(52, 211, 153, 0.2)',
+                      boxShadow: '0 8px 24px rgba(52, 211, 153, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
+                      transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      cursor: 'pointer',
+                      transform: 'translateZ(0)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px) translateZ(8px) rotateX(1deg)';
+                      e.currentTarget.style.boxShadow = '0 12px 36px rgba(52, 211, 153, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.6)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0)';
+                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(52, 211, 153, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4)';
+                    }}>
+                      <div className="offer-kpi__label" style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#64748b',
+                        marginBottom: '6px'
+                      }}>🧾 Total ofertas</div>
+                      <div className="offer-kpi__value" style={{
+                        fontSize: '28px',
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        textShadow: '0 2px 4px rgba(52, 211, 153, 0.2)'
+                      }}>{numberFmt(data.oportunidades.ofertas_analytics.total_ofertas || 0)}</div>
                     </div>
                   </div>
-                  <div className="offer-distribution">
-                    <ResponsiveContainer width="100%" height={240}>
+                  <div className="offer-distribution" style={{
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(240,255,244,0.5) 100%)',
+                    backdropFilter: 'blur(20px)',
+                    borderRadius: '20px',
+                    padding: '20px',
+                    border: '2px solid rgba(52, 211, 153, 0.2)',
+                    boxShadow: '0 12px 40px rgba(52, 211, 153, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4)'
+                  }}>
+                    <ResponsiveContainer width="100%" height={220}>
                       <BarChart data={data.oportunidades.ofertas_analytics.distribucion}>
                         <defs>
                           <linearGradient id="gradOfertas" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
-                            <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+                            <stop offset="35%" stopColor="#34d399" stopOpacity={0.95} />
+                            <stop offset="70%" stopColor="#6ee7b7" stopOpacity={0.9} />
+                            <stop offset="100%" stopColor="#059669" stopOpacity={0.85} />
                           </linearGradient>
+                          <filter id="shadowOfertas" x="-50%" y="-50%" width="200%" height="200%">
+                            <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15" floodColor="#10b981"/>
+                            <feDropShadow dx="0" dy="6" stdDeviation="8" floodOpacity="0.1" floodColor="#34d399"/>
+                            <feDropShadow dx="0" dy="12" stdDeviation="16" floodOpacity="0.06" floodColor="#6ee7b7"/>
+                          </filter>
                         </defs>
                         <XAxis 
                           dataKey="ofertas" 
-                          label={{ value: 'Número de ofertas', position: 'insideBottom', dy: 10, style: { fontWeight: 600 } }}
+                          label={{ value: 'Número de ofertas', position: 'insideBottom', dy: 10, style: { fontWeight: 700, fontSize: 13, fill: '#1e293b' } }}
                           stroke="#64748b"
+                          style={{ fontSize: 13, fontWeight: 600 }}
                         />
-                        <YAxis stroke="#64748b" />
+                        <YAxis stroke="#64748b" style={{ fontSize: 13, fontWeight: 600 }} />
                         <Tooltip 
                           formatter={(v: any, n: any, p: any) => [`${v} licitaciones (${(p.payload.percentage || 0).toFixed(1)}%)`, 'Licitaciones']}
                           contentStyle={{
-                            background: 'rgba(30, 41, 59, 0.95)',
-                            backdropFilter: 'blur(12px)',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            borderRadius: '12px',
-                            padding: '12px 16px'
+                            background: 'rgba(255, 255, 255, 0.98)',
+                            backdropFilter: 'blur(25px) saturate(180%)',
+                            border: '2px solid rgba(52, 211, 153, 0.3)',
+                            borderRadius: '16px',
+                            padding: '14px 18px',
+                            boxShadow: '0 16px 48px rgba(52, 211, 153, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.4)'
                           }}
-                          labelStyle={{ color: 'white', fontWeight: 600 }}
+                          itemStyle={{
+                            color: '#1e293b',
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            textShadow: '0 1px 2px rgba(255,255,255,0.8)'
+                          }}
+                          labelStyle={{ 
+                            color: '#64748b', 
+                            fontWeight: 600,
+                            fontSize: '11px'
+                          }}
+                          wrapperStyle={{
+                            outline: 'none',
+                            filter: 'drop-shadow(0 12px 40px rgba(52, 211, 153, 0.3))'
+                          }}
                         />
-                        <Bar dataKey="count" fill="url(#gradOfertas)" radius={[8,8,0,0]} />
+                        <Bar 
+                          dataKey="count" 
+                          fill="url(#gradOfertas)" 
+                          radius={[10,10,0,0]} 
+                          filter="url(#shadowOfertas)"
+                          style={{
+                            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                            cursor: 'pointer'
+                          }}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -677,7 +1203,13 @@ export const InstitucionesDashboard: React.FC = () => {
             )}
 
             {/* Tablas modernas de licitaciones y contratos */}
-            <section className="tables-section" aria-label="Licitaciones y contratos">
+            <section className="tables-section" aria-label="Licitaciones y contratos" style={{
+              display: 'grid',
+              gap: '24px',
+              marginTop: '24px',
+              perspective: '2000px',
+              transformStyle: 'preserve-3d'
+            }}>
               <Card title="Ofertas (resumen)">
                 <VirtualizedTable
                   data={(data.oportunidades?.ofertas_resumen || []).map((o: any) => ({
@@ -690,7 +1222,7 @@ export const InstitucionesDashboard: React.FC = () => {
                     { key: 'descripcion', header: 'Descripción', width: 520 },
                     { key: 'fecha', header: 'Última oferta', width: 140 }
                   ] as SimpleColumn<any>[]}
-                  height={260}
+                  height={220}
                   ariaLabel="Tabla de ofertas"
                   resizable
                 />
@@ -732,7 +1264,7 @@ export const InstitucionesDashboard: React.FC = () => {
                     { key: 'ofertas', header: 'Ofertas', width: 90, align: 'right' },
                     { key: 'estado', header: 'Estado', width: 140 }
                   ] as SimpleColumn<any>[]}
-                  height={300}
+                  height={240}
                   ariaLabel="Tabla de licitaciones recientes"
                   resizable
                 />
@@ -755,7 +1287,7 @@ export const InstitucionesDashboard: React.FC = () => {
                     { key: 'monto', header: 'Monto', width: 120, align: 'right', cell: (r: any) => formatCurrency(r.monto, { compact: true }) },
                     { key: 'estado', header: 'Estado', width: 140 }
                   ] as SimpleColumn<any>[]}
-                  height={300}
+                  height={240}
                   ariaLabel="Tabla de contratos"
                   resizable
                 />
@@ -793,7 +1325,7 @@ export const InstitucionesDashboard: React.FC = () => {
                         );
                       } }
                     ] as SimpleColumn<any>[]}
-                    height={320}
+                    height={260}
                     ariaLabel="Tabla de clasificación sectorial"
                     resizable
                   />

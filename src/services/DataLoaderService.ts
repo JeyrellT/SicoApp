@@ -11,6 +11,12 @@ interface LoadProgress {
   current: number;
   total: number;
   percentage: number;
+  details?: {
+    recordsProcessed?: number;
+    institutions?: number;
+    filesProcessed?: number;
+    speed?: string;
+  };
 }
 
 type ProgressCallback = (progress: LoadProgress) => void;
@@ -103,13 +109,22 @@ class DataLoaderService {
 
       const totalTypes = filesByType.size;
       let currentType = 0;
+      let totalRecordsProcessed = 0;
+      const startTime = Date.now();
+      const uniqueInstitutions = new Set<string>();
 
       // Notificar progreso inicial
       onProgress?.({
         stage: 'Iniciando carga de datos',
         current: 0,
         total: totalTypes,
-        percentage: 0
+        percentage: 0,
+        details: {
+          recordsProcessed: 0,
+          institutions: 0,
+          filesProcessed: 0,
+          speed: 'Calculando...'
+        }
       });
 
       // Crear objeto temporal para almacenar datos consolidados
@@ -119,11 +134,24 @@ class DataLoaderService {
       for (const [type, typeFiles] of filesByType.entries()) {
         currentType++;
         
+        // Calcular velocidad de procesamiento
+        const elapsedSeconds = (Date.now() - startTime) / 1000;
+        const recordsPerSecond = totalRecordsProcessed / Math.max(elapsedSeconds, 1);
+        const speed = recordsPerSecond > 1000 
+          ? `${(recordsPerSecond / 1000).toFixed(1)}K/s`
+          : `${Math.round(recordsPerSecond)}/s`;
+        
         onProgress?.({
           stage: `Consolidando ${type}`,
           current: currentType,
           total: totalTypes,
-          percentage: Math.round((currentType / totalTypes) * 50) // 50% para consolidación
+          percentage: Math.round((currentType / totalTypes) * 50), // 50% para consolidación
+          details: {
+            recordsProcessed: totalRecordsProcessed,
+            institutions: uniqueInstitutions.size,
+            filesProcessed: currentType - 1,
+            speed
+          }
         });
 
         let allRecords: any[] = [];
@@ -134,15 +162,25 @@ class DataLoaderService {
           const fileData = await cacheService.getFile(fileInfo.id);
           if (fileData && fileData.data && fileData.data.length > 0) {
             // Agregar columnas de metadatos para tracking y filtrado posterior
-            const dataWithMetadata = fileData.data.map(record => ({
-              ...record,
-              _YEAR: fileInfo.year,
-              _MONTH: fileInfo.month,
-              _FILE_SOURCE: fileInfo.fileName,
-              _UPLOAD_DATE: fileInfo.uploadDate
-            }));
+            const dataWithMetadata = fileData.data.map(record => {
+              // Extraer instituciones únicas
+              if (record.Institucion || record.INSTITUCION || record.institucion) {
+                uniqueInstitutions.add(
+                  record.Institucion || record.INSTITUCION || record.institucion
+                );
+              }
+              
+              return {
+                ...record,
+                _YEAR: fileInfo.year,
+                _MONTH: fileInfo.month,
+                _FILE_SOURCE: fileInfo.fileName,
+                _UPLOAD_DATE: fileInfo.uploadDate
+              };
+            });
             // Usar concat que es más eficiente para arrays grandes
             allRecords = allRecords.concat(dataWithMetadata);
+            totalRecordsProcessed += dataWithMetadata.length;
           }
         }
 
@@ -181,11 +219,20 @@ class DataLoaderService {
     consolidatedData: Record<string, any[]>,
     onProgress?: ProgressCallback
   ): Promise<void> {
+    const totalRecords = Object.values(consolidatedData).reduce(
+      (sum, records) => sum + records.length, 
+      0
+    );
+    
     onProgress?.({
       stage: 'Inyectando datos en DataManager',
       current: 0,
       total: 1,
-      percentage: 75
+      percentage: 75,
+      details: {
+        recordsProcessed: totalRecords,
+        filesProcessed: Object.keys(consolidatedData).length
+      }
     });
 
     // Usar el nuevo método del DataManager que acepta datos directamente
@@ -195,7 +242,11 @@ class DataLoaderService {
       stage: 'Datos inyectados exitosamente',
       current: 1,
       total: 1,
-      percentage: 95
+      percentage: 95,
+      details: {
+        recordsProcessed: totalRecords,
+        filesProcessed: Object.keys(consolidatedData).length
+      }
     });
   }
 

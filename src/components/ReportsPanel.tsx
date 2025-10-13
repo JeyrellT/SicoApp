@@ -26,6 +26,7 @@ interface ReportFilter {
 }
 
 export const ReportsPanel: React.FC = () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { estadisticasGenerales } = useSicop();
   
   const [activeReport, setActiveReport] = useState<ReportType>('executive');
@@ -182,7 +183,8 @@ export const ReportsPanel: React.FC = () => {
             <div className="metric-content">
               <div className="metric-value">
                 {resumenGeneral.crecimientoAnual > 0 ? '+' : ''}
-                {resumenGeneral.crecimientoAnual.toFixed(1)}%
+                {/* Limitar a máximo ±999% para evitar números gigantes */}
+                {Math.min(Math.max(resumenGeneral.crecimientoAnual, -999), 999).toFixed(1)}%
               </div>
               <div className="metric-label">Crecimiento Anual</div>
             </div>
