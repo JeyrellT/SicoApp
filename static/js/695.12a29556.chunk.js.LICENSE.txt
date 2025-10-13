@@ -1,0 +1,17 @@
+/**
+ * @license lucide-react v0.544.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * SICOP Analytics - Componente de Instalación PWA (Versión Discreta)
+ * 
+ * @copyright 2025 Saenz Fallas S.A. - Todos los derechos reservados
+ * @author Saenz Fallas S.A.
+ * @company Saenz Fallas S.A.
+ * @license Propiedad de Saenz Fallas S.A.
+ * 
+ * HQ Analytics™ - High Technology Quality Analytics
+ */
