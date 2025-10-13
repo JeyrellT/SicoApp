@@ -9,13 +9,20 @@
  * HQ Analytics™ - High Technology Quality Analytics
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { SicopProvider, useSicop } from './context/SicopContext.tsx';
-import { DemoPanel } from './components/DemoPanel';
-import { DataManagementHub } from './components/DataManagementHub';
-import { WelcomeScreenModern } from './components/WelcomeScreenModern.tsx';
 import { ModernLoadingScreen } from './components/ModernLoadingScreen';
+import { 
+  DemoPanelSkeleton, 
+  DataManagementSkeleton, 
+  WelcomeSkeleton 
+} from './components/SkeletonScreens.tsx';
 import './App.css';
+
+// Lazy loading para componentes grandes (code splitting)
+const DemoPanel = lazy(() => import('./components/DemoPanel').then(module => ({ default: module.DemoPanel })));
+const DataManagementHub = lazy(() => import('./components/DataManagementHub').then(module => ({ default: module.DataManagementHub })));
+const WelcomeScreenModern = lazy(() => import('./components/WelcomeScreenModern.tsx').then(module => ({ default: module.WelcomeScreenModern })));
 
 // ================================
 // CONSTANTS
@@ -179,21 +186,25 @@ function AppContent() {
     switch (currentScreen) {
       case 'welcome':
         return (
-          <WelcomeScreenModern 
-            onManageData={handleGoToDataManagement}
-            onLaunchApp={handleLaunchApp}
-            onStartTour={handleStartTour}
-          />
+          <Suspense fallback={<WelcomeSkeleton />}>
+            <WelcomeScreenModern 
+              onManageData={handleGoToDataManagement}
+              onLaunchApp={handleLaunchApp}
+              onStartTour={handleStartTour}
+            />
+          </Suspense>
         );
 
       case 'dataManagement':
         return (
-          <DataManagementHub 
-            onLaunchApp={handleLaunchApp}
-            onGoBack={handleGoBackToWelcome}
-            startTour={showDataManagementTour}
-            onTourComplete={() => setShowDataManagementTour(false)}
-          />
+          <Suspense fallback={<DataManagementSkeleton />}>
+            <DataManagementHub 
+              onLaunchApp={handleLaunchApp}
+              onGoBack={handleGoBackToWelcome}
+              startTour={showDataManagementTour}
+              onTourComplete={() => setShowDataManagementTour(false)}
+            />
+          </Suspense>
         );
 
       case 'loading':
@@ -209,17 +220,21 @@ function AppContent() {
 
       case 'mainApp':
         return (
-          <DemoPanel onGoBackToWelcome={handleGoBackToWelcome} />
+          <Suspense fallback={<DemoPanelSkeleton />}>
+            <DemoPanel onGoBackToWelcome={handleGoBackToWelcome} />
+          </Suspense>
         );
 
       default:
         console.warn('⚠️ Pantalla desconocida:', currentScreen);
         return (
-          <WelcomeScreenModern 
-            onManageData={handleGoToDataManagement}
-            onLaunchApp={handleLaunchApp}
-            onStartTour={handleStartTour}
-          />
+          <Suspense fallback={<WelcomeSkeleton />}>
+            <WelcomeScreenModern 
+              onManageData={handleGoToDataManagement}
+              onLaunchApp={handleLaunchApp}
+              onStartTour={handleStartTour}
+            />
+          </Suspense>
         );
     }
   };

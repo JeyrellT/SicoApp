@@ -316,8 +316,11 @@ export const WelcomeScreenModern: React.FC<{
           filter: 
             drop-shadow(0 20px 40px rgba(102, 126, 234, 0.4))
             drop-shadow(0 10px 20px rgba(118, 75, 162, 0.3));
-          transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.6s ease;
           transform-style: preserve-3d;
+          transform: translateZ(0);
+          will-change: transform, filter;
+          backface-visibility: hidden;
         }
 
         .logo-section img:hover {
@@ -344,7 +347,10 @@ export const WelcomeScreenModern: React.FC<{
           box-shadow: 
             0 8px 24px rgba(102, 126, 234, 0.15),
             inset 0 1px 0 rgba(255, 255, 255, 0.8);
-          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease, border-color 0.3s ease;
+          transform: translateZ(0);
+          will-change: transform;
+          backface-visibility: hidden;
         }
 
         .copyright-badge:hover {
@@ -391,9 +397,12 @@ export const WelcomeScreenModern: React.FC<{
           filter: 
             drop-shadow(0 12px 24px rgba(102, 126, 234, 0.5))
             drop-shadow(0 6px 12px rgba(118, 75, 162, 0.3));
-          transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.5s ease;
           cursor: pointer;
           transform-style: preserve-3d;
+          transform: translateZ(0);
+          will-change: transform, filter;
+          backface-visibility: hidden;
         }
 
         .hero-icon:hover {
@@ -460,7 +469,7 @@ export const WelcomeScreenModern: React.FC<{
           padding: 55px 45px;
           text-align: center;
           cursor: pointer;
-          transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease, border-color 0.3s ease;
           position: relative;
           overflow: hidden;
           border: 2px solid rgba(102, 126, 234, 0.15);
@@ -470,6 +479,9 @@ export const WelcomeScreenModern: React.FC<{
             inset 0 1px 0 rgba(255, 255, 255, 0.9);
           transform-style: preserve-3d;
           backdrop-filter: blur(10px);
+          transform: translateZ(0);
+          will-change: transform;
+          backface-visibility: hidden;
         }
 
         /* Efecto de brillo al hover */
@@ -487,12 +499,13 @@ export const WelcomeScreenModern: React.FC<{
             rgba(118, 75, 162, 0.25) 60%,
             transparent
           );
-          transition: left 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-          transform: rotate(25deg);
+          transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transform: translateX(0) rotate(25deg) translateZ(0);
+          will-change: transform;
         }
 
         .action-card-modern:hover::before {
-          left: 150%;
+          transform: translateX(300%) rotate(25deg) translateZ(0);
         }
 
         /* Borde brillante animado */
@@ -649,7 +662,7 @@ export const WelcomeScreenModern: React.FC<{
           display: inline-flex;
           align-items: center;
           gap: 14px;
-          transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
           box-shadow: 
             0 15px 40px rgba(102, 126, 234, 0.45),
             0 5px 15px rgba(118, 75, 162, 0.3),
@@ -657,6 +670,9 @@ export const WelcomeScreenModern: React.FC<{
           position: relative;
           overflow: hidden;
           letter-spacing: 0.5px;
+          transform: translateZ(0);
+          will-change: transform;
+          backface-visibility: hidden;
         }
 
         .card-button::before {
@@ -668,14 +684,13 @@ export const WelcomeScreenModern: React.FC<{
           height: 0;
           background: rgba(255, 255, 255, 0.35);
           border-radius: 50%;
-          transform: translate(-50%, -50%);
-          transition: width 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
-                      height 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transform: translate(-50%, -50%) scale(0) translateZ(0);
+          transition: transform 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          will-change: transform;
         }
 
         .card-button:hover::before {
-          width: 500px;
-          height: 500px;
+          transform: translate(-50%, -50%) scale(50) translateZ(0);
         }
 
         .card-button:hover {
@@ -849,20 +864,23 @@ export const WelcomeScreenModern: React.FC<{
           border-radius: 25px;
           text-align: center;
           border: 2px solid rgba(102, 126, 234, 0.15);
-          transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease, border-color 0.3s ease;
           box-shadow: 
             0 10px 30px rgba(102, 126, 234, 0.12),
             inset 0 1px 0 rgba(255, 255, 255, 0.8);
           position: relative;
           overflow: hidden;
           backdrop-filter: blur(10px);
+          transform: translateZ(0);
+          will-change: transform;
+          backface-visibility: hidden;
         }
 
         .feature-item::before {
           content: '';
           position: absolute;
           top: 0;
-          left: -100%;
+          left: 0;
           width: 100%;
           height: 100%;
           background: linear-gradient(
@@ -871,11 +889,13 @@ export const WelcomeScreenModern: React.FC<{
             rgba(102, 126, 234, 0.1),
             transparent
           );
-          transition: left 0.7s ease;
+          transition: transform 0.7s ease;
+          transform: translateX(-100%) translateZ(0);
+          will-change: transform;
         }
 
         .feature-item:hover::before {
-          left: 100%;
+          transform: translateX(100%) translateZ(0);
         }
 
         .feature-item:hover {
@@ -901,8 +921,11 @@ export const WelcomeScreenModern: React.FC<{
             0 12px 30px rgba(102, 126, 234, 0.4),
             0 6px 15px rgba(118, 75, 162, 0.3),
             inset 0 2px 0 rgba(255, 255, 255, 0.3);
-          transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
           position: relative;
+          transform: translateZ(0);
+          will-change: transform;
+          backface-visibility: hidden;
         }
 
         .feature-icon-circle::before {
@@ -1098,6 +1121,37 @@ export const WelcomeScreenModern: React.FC<{
           .hero-icon {
             width: 50px;
             height: 50px;
+          }
+        }
+
+        /* ========================================
+           ACCESIBILIDAD - REDUCED MOTION
+           ======================================== */
+        @media (prefers-reduced-motion: reduce) {
+          *,
+          *::before,
+          *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+          }
+
+          .logo-section img,
+          .hero-icon,
+          .action-card-modern,
+          .feature-item,
+          .feature-icon-circle,
+          .card-button {
+            animation: none;
+          }
+
+          .action-card-modern:hover,
+          .feature-item:hover,
+          .card-button:hover,
+          .hero-icon:hover,
+          .logo-section img:hover {
+            transform: none;
           }
         }
       `}</style>
@@ -1332,3 +1386,6 @@ export const WelcomeScreenModern: React.FC<{
     </div>
   );
 };
+
+// Export default para lazy loading
+export default WelcomeScreenModern;

@@ -147,4 +147,14 @@ function VirtualizedTable<T extends object>({
   );
 }
 
-export default VirtualizedTable;
+// Memoizar el componente para evitar re-renders innecesarios
+export default React.memo(VirtualizedTable, (prevProps, nextProps) => {
+  // Solo re-renderizar si cambió la data, columns, height o rowHeight
+  return (
+    prevProps.data === nextProps.data &&
+    prevProps.columns === nextProps.columns &&
+    prevProps.height === nextProps.height &&
+    prevProps.rowHeight === nextProps.rowHeight &&
+    prevProps.onRowClick === nextProps.onRowClick
+  );
+}) as typeof VirtualizedTable;

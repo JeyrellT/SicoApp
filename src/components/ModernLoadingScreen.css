@@ -48,6 +48,8 @@
   opacity: 0.4;
   animation: float 20s infinite ease-in-out;
   mix-blend-mode: screen;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .orb-1 {
@@ -100,6 +102,9 @@
   animation: particleFloat linear infinite;
   top: -10px;
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 @keyframes particleFloat {
@@ -178,12 +183,17 @@
     0 0 30px rgba(255, 255, 255, 0.3),
     0 0 60px rgba(168, 85, 247, 0.4),
     inset 0 0 20px rgba(255, 255, 255, 0.1);
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .logo-inner {
   font-size: 65px;
   animation: bounce 2s ease-in-out infinite;
   filter: drop-shadow(0 4px 12px rgba(255, 255, 255, 0.5));
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .logo-pulse {
@@ -952,5 +962,28 @@
 
   .stat-value {
     font-size: 28px;
+  }
+}
+
+/* ========================================
+   ACCESIBILIDAD - REDUCED MOTION
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .logo-circle,
+  .logo-inner,
+  .logo-pulse,
+  .particle,
+  .gradient-orb,
+  .animated-background {
+    animation: none;
   }
 }

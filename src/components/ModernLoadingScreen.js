@@ -20,7 +20,7 @@ export const ModernLoadingScreen = ({
   onGoBack = null
 }) => {
   const [dots, setDots] = useState('');
-  const [particleCount] = useState(20);
+  const [particleCount] = useState(10); // Reducido de 20 a 10 para mejor performance
 
   // Animación de puntos suspensivos
   useEffect(() => {

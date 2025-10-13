@@ -1066,3 +1066,6 @@ export const DataManagementHub: React.FC<{
     </div>
   );
 };
+
+// Export default para lazy loading
+export default DataManagementHub;

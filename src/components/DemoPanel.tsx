@@ -217,3 +217,6 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ onGoBackToWelcome }) => {
     </div>
   );
 };
+
+// Export default para lazy loading
+export default DemoPanel;

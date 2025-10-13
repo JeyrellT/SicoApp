@@ -15,7 +15,7 @@ import {
   TrendingUp, TrendingDown, AlertTriangle,
   Building, FileText, Target, Users,
   AlertCircle, Activity, DollarSign,
-  Calendar, Clock, Briefcase
+  Calendar, Clock, Briefcase, Settings, X, Save, RefreshCw
 } from 'lucide-react';
 import moment from 'moment';
 import { formatCurrency } from '../utils/formatting';
@@ -640,6 +640,59 @@ export const ModernDashboard: React.FC = () => {
   const [searchKeywords, setSearchKeywords] = useState<string>('');
   const [filtersApplied, setFiltersApplied] = useState<{ institucion?: string[]; sector?: string[]; keywords?: string[] }>({});
   const [isLoadingFilters, setIsLoadingFilters] = useState(false);
+  
+  // Estados para el modal de configuración de colores
+  const [showColorSettings, setShowColorSettings] = useState(false);
+  const [customColors, setCustomColors] = useState<Record<string, string>>({});
+  const [customSubcategoryColors, setCustomSubcategoryColors] = useState<Record<string, string>>({});
+  const [tempColors, setTempColors] = useState<Record<string, string>>({});
+  const [tempSubColors, setTempSubColors] = useState<Record<string, string>>({});
+
+  // Sincronizar estados temporales cuando se abre el modal
+  useEffect(() => {
+    if (showColorSettings) {
+      setTempColors({ ...customColors });
+      setTempSubColors({ ...customSubcategoryColors });
+    }
+  }, [showColorSettings, customColors, customSubcategoryColors]);
+
+  // Cargar colores personalizados desde localStorage al montar el componente
+  useEffect(() => {
+    const savedColors = localStorage.getItem('sicop_custom_category_colors');
+    const savedSubColors = localStorage.getItem('sicop_custom_subcategory_colors');
+    
+    if (savedColors) {
+      try {
+        setCustomColors(JSON.parse(savedColors));
+      } catch (e) {
+        console.error('Error al cargar colores personalizados:', e);
+      }
+    }
+    
+    if (savedSubColors) {
+      try {
+        setCustomSubcategoryColors(JSON.parse(savedSubColors));
+      } catch (e) {
+        console.error('Error al cargar colores de subcategorías:', e);
+      }
+    }
+  }, []);
+
+  // Función para guardar colores personalizados
+  const saveCustomColors = (colors: Record<string, string>, subColors: Record<string, string>) => {
+    localStorage.setItem('sicop_custom_category_colors', JSON.stringify(colors));
+    localStorage.setItem('sicop_custom_subcategory_colors', JSON.stringify(subColors));
+    setCustomColors(colors);
+    setCustomSubcategoryColors(subColors);
+  };
+
+  // Función para resetear colores a los valores por defecto
+  const resetColors = () => {
+    localStorage.removeItem('sicop_custom_category_colors');
+    localStorage.removeItem('sicop_custom_subcategory_colors');
+    setCustomColors({});
+    setCustomSubcategoryColors({});
+  };
 
   // ================================
   // DATOS REALES MEJORADOS
@@ -740,7 +793,7 @@ export const ModernDashboard: React.FC = () => {
 
   // Sectores con datos calculados del análisis
   const sectoresReales = useMemo((): SectorData[] => {
-    const colores: Record<string, string> = {
+    const coloresDefecto: Record<string, string> = {
       'Mantenimiento, reparación y limpieza': '#3498db',
       'Suministros de oficina y papelería': '#f39c12',
       'Tecnología y sistemas': '#9b59b6',
@@ -756,16 +809,22 @@ export const ModernDashboard: React.FC = () => {
       'Otros': '#95a5a6'
     };
 
-    return (dashboardData.sector_analysis || []).map((sector: any) => ({
-      name: sector.sector.replace('_', ' '),
-      value: sector.percentage,
-      count: sector.count,
-      color: colores[sector.sector as keyof typeof colores] || '#95a5a6',
-      monto_total: sector.total_monto,
-      promedio_monto: sector.promedio_monto,
-      instituciones: sector.instituciones_unicas
-    }));
-  }, [dashboardData]);
+    return (dashboardData.sector_analysis || []).map((sector: any) => {
+      const sectorName = sector.sector.replace('_', ' ');
+      // Usar color personalizado si existe, sino usar el color por defecto
+      const color = customColors[sectorName] || coloresDefecto[sector.sector as keyof typeof coloresDefecto] || '#95a5a6';
+      
+      return {
+        name: sectorName,
+        value: sector.percentage,
+        count: sector.count,
+        color,
+        monto_total: sector.total_monto,
+        promedio_monto: sector.promedio_monto,
+        instituciones: sector.instituciones_unicas
+      };
+    });
+  }, [dashboardData, customColors]);
 
   // Opciones de sectores disponibles para filtrado (futuro uso)
   useMemo(() => {
@@ -803,6 +862,7 @@ export const ModernDashboard: React.FC = () => {
 
   // Subcategorías agregadas por filtro: si no hay filtro de sector, combina todas
   const subcategoriasData = useMemo(() => {
+    const coloresDefectoSub = ["#82ca9d", "#a0d8ef", "#f7b267", "#f79d84", "#c3aed6", "#a8e6cf", "#ffd3b6", "#ffaaa5"];
     const analysis = (dashboardData as any).subcategory_analysis || {};
     const sectoresFiltrados: string[] = (filtersApplied.sector && filtersApplied.sector.length)
       ? (filtersApplied.sector as string[])
@@ -816,8 +876,13 @@ export const ModernDashboard: React.FC = () => {
     });
     return Object.entries(agg)
       .sort((a, b) => b[1] - a[1])
-      .map(([name, value]) => ({ name, value }));
-  }, [dashboardData, filtersApplied]);
+      .map(([name, value], index) => ({
+        name,
+        value,
+        // Usar color personalizado si existe, sino usar color por defecto
+        color: customSubcategoryColors[name] || coloresDefectoSub[index % coloresDefectoSub.length]
+      }));
+  }, [dashboardData, filtersApplied, customSubcategoryColors]);
 
   // Métricas calculadas con datos reales
   const metricsReales = useMemo(() => {
@@ -911,8 +976,277 @@ export const ModernDashboard: React.FC = () => {
     );
   }
 
+  // Renderizar modal de configuración de colores
+  const renderColorSettingsModal = () => {
+    if (!showColorSettings) return null;
+    
+    // Obtener todas las categorías y subcategorías únicas
+    const allCategories = sectoresReales.map(s => s.name);
+    const allSubcategories = subcategoriasData.map((s: any) => s.name);
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.7)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '20px'
+      }}
+      onClick={() => setShowColorSettings(false)}
+      >
+        <div 
+          style={{
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.95) 100%)',
+            borderRadius: '24px',
+            padding: '32px',
+            maxWidth: '900px',
+            width: '100%',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            position: 'relative'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '24px',
+            paddingBottom: '16px',
+            borderBottom: '2px solid rgba(102, 126, 234, 0.2)'
+          }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: '24px',
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <Settings size={28} />
+              Configuración de Colores
+            </h2>
+            <button
+              onClick={() => setShowColorSettings(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px',
+                borderRadius: '8px',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <X size={24} color="#2c3e50" />
+            </button>
+          </div>
+
+          {/* Categorías */}
+          <div style={{ marginBottom: '32px' }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#2c3e50',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              📊 Categorías ({allCategories.length})
+            </h3>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+              gap: '12px'
+            }}>
+              {allCategories.map(category => (
+                <div key={category} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px',
+                  background: 'rgba(102, 126, 234, 0.08)',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(102, 126, 234, 0.2)'
+                }}>
+                  <input
+                    type="color"
+                    value={tempColors[category] || sectoresReales.find(s => s.name === category)?.color || '#95a5a6'}
+                    onChange={(e) => setTempColors({ ...tempColors, [category]: e.target.value })}
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <span style={{
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    color: '#2c3e50',
+                    flex: 1
+                  }}>
+                    {category}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Subcategorías */}
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#2c3e50',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              📋 Subcategorías ({allSubcategories.length})
+            </h3>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: '10px',
+              maxHeight: '300px',
+              overflowY: 'auto',
+              padding: '4px'
+            }}>
+              {allSubcategories.map((subcategory: string) => (
+                <div key={subcategory} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '10px',
+                  background: 'rgba(40, 167, 69, 0.08)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(40, 167, 69, 0.2)'
+                }}>
+                  <input
+                    type="color"
+                    value={tempSubColors[subcategory] || subcategoriasData.find((s: any) => s.name === subcategory)?.color || '#82ca9d'}
+                    onChange={(e) => setTempSubColors({ ...tempSubColors, [subcategory]: e.target.value })}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <span style={{
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    color: '#2c3e50',
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {subcategory}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Botones de acción */}
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end',
+            paddingTop: '16px',
+            borderTop: '2px solid rgba(102, 126, 234, 0.2)'
+          }}>
+            <button
+              onClick={() => {
+                resetColors();
+                setTempColors({});
+                setTempSubColors({});
+              }}
+              style={{
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              <RefreshCw size={16} />
+              Resetear
+            </button>
+            <button
+              onClick={() => {
+                saveCustomColors(tempColors, tempSubColors);
+                setShowColorSettings(false);
+              }}
+              style={{
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px',
+                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.6)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+              }}
+            >
+              <Save size={16} />
+              Guardar Cambios
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div style={{ 
+    <>
+      {renderColorSettingsModal()}
+      <div style={{ 
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
       padding: '70px 80px',
@@ -1336,6 +1670,35 @@ export const ModernDashboard: React.FC = () => {
             }}>
               DATOS REALES
             </span>
+            <button
+              onClick={() => setShowColorSettings(true)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.1) rotate(90deg)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+              }}
+              style={{
+                marginLeft: 'auto',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border: 'none',
+                borderRadius: '10px',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                color: 'white'
+              }}
+              title="Configurar colores de categorías"
+            >
+              <Settings size={18} />
+            </button>
           </h3>
           
           <div style={{ 
@@ -1388,8 +1751,8 @@ export const ModernDashboard: React.FC = () => {
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie data={subcategoriasData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={2} dataKey="value">
-                    {subcategoriasData.map((entry: { name: string; value: number }, index: number) => (
-                      <Cell key={`subcell-${index}`} fill={["#82ca9d", "#a0d8ef", "#f7b267", "#f79d84", "#c3aed6", "#a8e6cf", "#ffd3b6", "#ffaaa5"][index % 8]} />
+                    {subcategoriasData.map((entry: { name: string; value: number; color: string }, index: number) => (
+                      <Cell key={`subcell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value: any, name: string) => [`${value.toLocaleString()} carteles`, name]} />
@@ -2065,6 +2428,7 @@ export const ModernDashboard: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

@@ -1,0 +1,436 @@
+/**
+ * ANIMACIONES OPTIMIZADAS - WelcomeScreen
+ * 
+ * Este archivo contiene todas las animaciones CSS optimizadas para rendimiento
+ * usando solo propiedades GPU-accelerated (transform, opacity)
+ * 
+ * ANTES: Usábamos width, left, top, right (causan reflow/repaint)
+ * DESPUÉS: Solo transform y opacity (GPU-composited)
+ */
+
+/* ========================================
+   ANIMACIONES BASE - GPU OPTIMIZADAS
+   ======================================== */
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(40px) translateZ(0);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) translateZ(0);
+  }
+}
+
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0) translateZ(0);
+  }
+  50% { 
+    transform: translateY(-20px) translateZ(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { 
+    transform: translateX(-100%) translateZ(0);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% { 
+    transform: translateX(100%) translateZ(0);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scale(1) translateZ(0);
+  }
+  50% { 
+    opacity: 0.92; 
+    transform: scale(1.03) translateZ(0);
+  }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(60px) scale(0.95) translateZ(0);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1) translateZ(0);
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0; 
+    transform: scale(0.88) translateZ(0);
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1) translateZ(0);
+  }
+}
+
+@keyframes particleFloat {
+  0% {
+    transform: translate(0, 0) rotate(0deg) translateZ(0);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translate(100px, -100px) rotate(180deg) translateZ(0);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(200px, -50px) rotate(360deg) translateZ(0);
+    opacity: 0.2;
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg) translateZ(0);
+  }
+  to {
+    transform: rotate(360deg) translateZ(0);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0) translateZ(0);
+  }
+  50% {
+    transform: translateY(-10px) translateZ(0);
+  }
+}
+
+/* ========================================
+   WELCOME SCREEN COMPONENTS
+   ======================================== */
+
+.modern-welcome {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  
+  /* Performance optimizations */
+  will-change: scroll-position;
+  contain: layout style paint;
+}
+
+/* Animated background */
+.welcome-background {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.welcome-particle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  
+  /* GPU optimization */
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  
+  animation: particleFloat 20s linear infinite;
+}
+
+/* Stagger particle animations */
+.welcome-particle:nth-child(1) { animation-delay: 0s; left: 10%; }
+.welcome-particle:nth-child(2) { animation-delay: 2s; left: 20%; }
+.welcome-particle:nth-child(3) { animation-delay: 4s; left: 30%; }
+.welcome-particle:nth-child(4) { animation-delay: 6s; left: 40%; }
+.welcome-particle:nth-child(5) { animation-delay: 8s; left: 50%; }
+.welcome-particle:nth-child(6) { animation-delay: 10s; left: 60%; }
+.welcome-particle:nth-child(7) { animation-delay: 12s; left: 70%; }
+.welcome-particle:nth-child(8) { animation-delay: 14s; left: 80%; }
+
+/* Content container */
+.welcome-content {
+  position: relative;
+  z-index: 1;
+  padding: 60px 20px;
+  animation: fadeIn 0.8s ease-out;
+  
+  /* Prevent layout shift */
+  contain: layout style;
+}
+
+/* Logo */
+.welcome-logo {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  /* GPU optimization */
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Cards */
+.welcome-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 40px;
+  margin: 20px auto;
+  max-width: 600px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  
+  /* GPU optimization */
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  
+  /* Only animate transform and opacity */
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease,
+              opacity 0.3s ease;
+  
+  animation: slideUp 0.6s ease-out;
+  
+  /* Performance containment */
+  contain: layout style paint;
+}
+
+.welcome-card:hover {
+  transform: translateY(-8px) translateZ(0);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+}
+
+/* Buttons */
+.welcome-button {
+  padding: 16px 32px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  
+  /* GPU optimization */
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease;
+}
+
+.welcome-button:hover {
+  transform: translateY(-4px) scale(1.05) translateZ(0);
+  box-shadow: 0 12px 32px rgba(102, 126, 234, 0.4);
+}
+
+.welcome-button:active {
+  transform: translateY(-2px) scale(1.02) translateZ(0);
+}
+
+/* Feature grid */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 24px;
+  margin: 40px 0;
+}
+
+.feature-item {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  
+  /* GPU optimization */
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  
+  animation: scaleIn 0.5s ease-out;
+  animation-fill-mode: backwards;
+}
+
+/* Stagger feature items */
+.feature-item:nth-child(1) { animation-delay: 0.1s; }
+.feature-item:nth-child(2) { animation-delay: 0.2s; }
+.feature-item:nth-child(3) { animation-delay: 0.3s; }
+.feature-item:nth-child(4) { animation-delay: 0.4s; }
+
+.feature-item:hover {
+  transform: translateY(-6px) scale(1.03) translateZ(0);
+}
+
+/* Icon containers */
+.icon-wrapper {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  /* GPU optimization */
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  
+  transition: transform 0.3s ease;
+}
+
+.feature-item:hover .icon-wrapper {
+  transform: scale(1.1) rotate(5deg) translateZ(0);
+}
+
+/* Stats badges */
+.stats-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  font-size: 14px;
+  font-weight: 600;
+  
+  /* GPU optimization */
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ========================================
+   RESPONSIVE DESIGN
+   ======================================== */
+
+@media (max-width: 768px) {
+  .welcome-content {
+    padding: 40px 16px;
+  }
+  
+  .welcome-card {
+    padding: 24px;
+    margin: 16px;
+  }
+  
+  .feature-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .welcome-button {
+    width: 100%;
+    padding: 14px 24px;
+  }
+}
+
+/* ========================================
+   ACCESSIBILITY - REDUCED MOTION
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .welcome-logo,
+  .welcome-particle,
+  .welcome-card,
+  .feature-item,
+  .welcome-button {
+    animation: none;
+  }
+  
+  .welcome-card:hover,
+  .feature-item:hover,
+  .welcome-button:hover {
+    transform: none;
+  }
+}
+
+/* ========================================
+   DARK MODE SUPPORT
+   ======================================== */
+
+@media (prefers-color-scheme: dark) {
+  .modern-welcome {
+    background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+  }
+  
+  .welcome-card {
+    background: rgba(30, 30, 30, 0.95);
+    color: #e2e8f0;
+  }
+  
+  .feature-item {
+    background: rgba(40, 40, 40, 0.9);
+    color: #e2e8f0;
+  }
+}
+
+/* ========================================
+   PERFORMANCE HINTS
+   ======================================== */
+
+/* 
+REGLAS IMPORTANTES PARA RENDIMIENTO:
+
+1. SOLO usar estas propiedades en animaciones:
+   - transform (translateX, translateY, scale, rotate)
+   - opacity
+   ❌ NUNCA: width, height, left, top, right, bottom, margin, padding
+
+2. SIEMPRE agregar:
+   - will-change: transform, opacity (pero solo en elementos animados)
+   - transform: translateZ(0) (para forzar GPU layer)
+   - backface-visibility: hidden (optimización de flip)
+
+3. Usar contain para optimizaciones:
+   - contain: layout (previene layout afuera del elemento)
+   - contain: paint (previene paint afuera del elemento)
+   - contain: style (optimiza recalculo de estilos)
+
+4. Accesibilidad:
+   - SIEMPRE implementar @media (prefers-reduced-motion)
+   - Proveer alternativas sin animación
+
+5. Testing:
+   - Usar Chrome DevTools Performance tab
+   - Verificar que las animaciones corran a 60 FPS
+   - Chequear que no haya "Layout Shift" en Lighthouse
+*/
