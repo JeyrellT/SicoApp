@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "https://jeyrellt.github.io/SicoApp/static/css/main.78b54273.css",
-    "main.js": "https://jeyrellt.github.io/SicoApp/static/js/main.6a5f2c65.js",
+    "main.js": "https://jeyrellt.github.io/SicoApp/static/js/main.6917d475.js",
     "static/js/847.c832cb76.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/847.c832cb76.chunk.js",
-    "static/js/493.bf94bde2.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/493.bf94bde2.chunk.js",
-    "static/js/37.210366fd.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/37.210366fd.chunk.js",
+    "static/js/493.a9812672.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/493.a9812672.chunk.js",
+    "static/js/37.809f3caa.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/37.809f3caa.chunk.js",
     "static/js/206.335f14a7.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/206.335f14a7.chunk.js",
     "index.html": "https://jeyrellt.github.io/SicoApp/index.html"
   },
   "entrypoints": [
     "static/css/main.78b54273.css",
-    "static/js/main.6a5f2c65.js"
+    "static/js/main.6917d475.js"
   ]
 }
