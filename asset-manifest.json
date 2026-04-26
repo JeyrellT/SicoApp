@@ -1,21 +1,21 @@
 {
   "files": {
-    "main.css": "https://jeyrellt.github.io/SicoApp/static/css/main.783265bb.css",
-    "main.js": "https://jeyrellt.github.io/SicoApp/static/js/main.59155e10.js",
-    "static/css/785.0fd0b46e.chunk.css": "https://jeyrellt.github.io/SicoApp/static/css/785.0fd0b46e.chunk.css",
-    "static/js/785.7beb4a67.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/785.7beb4a67.chunk.js",
-    "static/css/375.23d9aaf1.chunk.css": "https://jeyrellt.github.io/SicoApp/static/css/375.23d9aaf1.chunk.css",
+    "main.css": "https://jeyrellt.github.io/SicoApp/static/css/main.54c441ca.css",
+    "main.js": "https://jeyrellt.github.io/SicoApp/static/js/main.63d403cf.js",
+    "static/css/785.8a23fed2.chunk.css": "https://jeyrellt.github.io/SicoApp/static/css/785.8a23fed2.chunk.css",
+    "static/js/785.2cafb848.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/785.2cafb848.chunk.js",
+    "static/css/375.58f24520.chunk.css": "https://jeyrellt.github.io/SicoApp/static/css/375.58f24520.chunk.css",
     "static/js/375.24512595.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/375.24512595.chunk.js",
     "static/js/695.12a29556.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/695.12a29556.chunk.js",
     "static/js/206.335f14a7.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/206.335f14a7.chunk.js",
     "static/js/847.c832cb76.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/847.c832cb76.chunk.js",
     "static/js/493.cd9e3d85.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/493.cd9e3d85.chunk.js",
     "static/js/37.acc46a83.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/37.acc46a83.chunk.js",
-    "static/js/999.d47b8b34.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/999.d47b8b34.chunk.js",
+    "static/js/884.bb059812.chunk.js": "https://jeyrellt.github.io/SicoApp/static/js/884.bb059812.chunk.js",
     "index.html": "https://jeyrellt.github.io/SicoApp/index.html"
   },
   "entrypoints": [
-    "static/css/main.783265bb.css",
-    "static/js/main.59155e10.js"
+    "static/css/main.54c441ca.css",
+    "static/js/main.63d403cf.js"
   ]
 }
