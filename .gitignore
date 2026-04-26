@@ -1,0 +1,24 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Datos descargados (no se commitean)
+data/raw/
+data/extracted/
+data/logs/
+*.zip
+*.csv
+*.csv.gz
+
+# Manifest y catálogo (estado local; opcional commitear)
+data/manifest.json
+data/catalog.json
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.swp

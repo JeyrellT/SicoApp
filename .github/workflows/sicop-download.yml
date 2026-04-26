@@ -1,0 +1,99 @@
+name: SICOP daily download
+
+# Corre todos los días a las 14:00 UTC = 08:00 hora Costa Rica (UTC-6).
+# El Observatorio refresca el ZIP del mes en curso a las 08:00 CR; corremos a las 09:00 CR
+# para tener margen de propagación.
+on:
+  schedule:
+    - cron: '0 15 * * *'   # 09:00 Costa Rica (UTC-6, sin DST)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Modo de descarga'
+        required: false
+        default: 'current-only'
+        type: choice
+        options:
+          - current-only
+          - full-backfill
+          - custom
+      from:
+        description: 'yyyy-mm desde (solo si mode=custom)'
+        required: false
+        default: ''
+      to:
+        description: 'yyyy-mm hasta (solo si mode=custom)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write   # solo si se quiere commitear el manifest actualizado
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: sicop-download
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run downloader
+        run: |
+          MODE="${{ github.event.inputs.mode || 'current-only' }}"
+          case "$MODE" in
+            current-only)
+              node scripts/sicop-downloader/index.js --current-only --extract
+              ;;
+            full-backfill)
+              node scripts/sicop-downloader/index.js --from 2010-01 --extract
+              ;;
+            custom)
+              FROM="${{ github.event.inputs.from }}"
+              TO="${{ github.event.inputs.to }}"
+              ARGS="--extract"
+              [ -n "$FROM" ] && ARGS="$ARGS --from $FROM"
+              [ -n "$TO" ]   && ARGS="$ARGS --to $TO"
+              node scripts/sicop-downloader/index.js $ARGS
+              ;;
+            *)
+              echo "Modo desconocido: $MODE"; exit 1 ;;
+          esac
+
+      - name: Print summary
+        if: always()
+        run: node scripts/sicop-downloader/index.js summary || true
+        env:
+          TZ: America/Costa_Rica
+
+      - name: Upload data as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sicop-data-${{ github.run_id }}
+          path: |
+            data/raw/*.zip
+            data/extracted/**/*.csv
+            data/manifest.json
+            data/catalog.json
+            data/logs/*.log
+          retention-days: 7
+          if-no-files-found: warn
+
+      # Opcional: commitear solo el manifest (NUNCA los .zip; ver .gitignore)
+      # Habilita esto si querés tener el manifest versionado.
+      # - name: Commit manifest
+      #   if: github.event_name == 'schedule'
+      #   run: |
+      #     git config user.name 'github-actions[bot]'
+      #     git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      #     git add data/manifest.json
+      #     git diff --cached --quiet || git commit -m "chore(sicop): update manifest [skip ci]"
+      #     git push

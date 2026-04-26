@@ -1,0 +1,26 @@
+{
+  "name": "sicop-downloader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Descarga incremental e idempotente de los ZIPs mensuales del Observatorio de Compras Públicas (SICOP, Costa Rica).",
+  "license": "PRIVATE",
+  "type": "module",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "main": "scripts/sicop-downloader/index.js",
+  "bin": {
+    "sicop-download": "scripts/sicop-downloader/index.js"
+  },
+  "scripts": {
+    "download": "node scripts/sicop-downloader/index.js",
+    "download:current": "node scripts/sicop-downloader/index.js --current-only --extract",
+    "download:dry": "node scripts/sicop-downloader/index.js --dry-run",
+    "download:all": "node scripts/sicop-downloader/index.js --from 2010-01 --extract",
+    "extract": "node scripts/sicop-downloader/index.js extract",
+    "extract:current": "node scripts/sicop-downloader/index.js extract --current-only",
+    "inspect": "node scripts/sicop-downloader/index.js inspect",
+    "summary": "node scripts/sicop-downloader/index.js summary",
+    "test": "node --test scripts/sicop-downloader/tests/dates.test.js scripts/sicop-downloader/tests/retry.test.js scripts/sicop-downloader/tests/manifest.test.js scripts/sicop-downloader/tests/downloader.test.js scripts/sicop-downloader/tests/orchestrator.test.js scripts/sicop-downloader/tests/unzip.test.js scripts/sicop-downloader/tests/csv.test.js scripts/sicop-downloader/tests/reader.test.js"
+  }
+}
