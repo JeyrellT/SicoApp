@@ -5,7 +5,8 @@
 // Usa useDataManager hook para gestión de estado simplificada
 
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { useDataManager, type DataManagerHook } from '../hooks/useDataManager';
+import { useDataManager } from '../hooks/useDataManager';
+import type { DataManagerHook } from '../hooks/useDataManager';
 import { dataManager } from '../data/DataManager';
 import { filterService } from '../services/FilterService';
 import { reportService } from '../services/ReportService';

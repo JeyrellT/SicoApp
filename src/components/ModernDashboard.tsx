@@ -1726,10 +1726,10 @@ export const ModernDashboard: React.FC = () => {
                   ))}
                 </Pie>
                 <Tooltip 
-                  formatter={(value: any, name: string, props: any) => [
+                  formatter={(value: any, name: any, props: any) => [
                     `${value}% (${props.payload.count.toLocaleString()} licitaciones)`,
                     props.payload.name
-                  ]}
+                  ] as any}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -1755,7 +1755,7 @@ export const ModernDashboard: React.FC = () => {
                       <Cell key={`subcell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: any, name: string) => [`${value.toLocaleString()} carteles`, name]} />
+                  <Tooltip formatter={(value: any, name: any) => [`${value.toLocaleString()} carteles`, name || ''] as any} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
