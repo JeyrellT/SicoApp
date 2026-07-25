@@ -1,17 +1,27 @@
 // ================================
-// DASHBOARD SICOP ANALYTICS - VERSIÓN MEJORADA CON DATOS REALES
+// DASHBOARD SICOP ANALYTICS - CONECTADO A LA API BACKEND
 // ================================
+// Todo el cálculo agregado (sumas, agrupaciones, promedios sobre filas
+// crudas) ahora lo hace el backend. Este componente sólo formatea y
+// presenta lo que devuelven los endpoints de /v1/dashboard/*.
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useSicop } from '../context/SicopContext';
-import { dataManager } from '../data/DataManager';
+import {
+  useResumen,
+  useSerie,
+  useCategorias,
+  useTiposProcedimiento,
+  useTopInstituciones,
+  useTopProveedores,
+  useFiltros
+} from '../hooks/api';
 import { AdvancedFilters } from './AdvancedFilters';
-import { 
+import {
   ResponsiveContainer, PieChart, Pie, Cell,
   Tooltip, XAxis, YAxis,
-  BarChart, Bar, Area, AreaChart
+  AreaChart, Area
 } from 'recharts';
-import { 
+import {
   TrendingUp, TrendingDown, AlertTriangle,
   Building, FileText, Target, Users,
   AlertCircle, Activity, DollarSign,
@@ -39,7 +49,6 @@ interface AlertItem {
   title: string;
   message: string;
   timestamp: Date;
-  action?: string;
 }
 
 interface KPICardProps {
@@ -61,8 +70,7 @@ interface SectorData {
   color: string;
   monto_total: number;
   promedio_monto: number;
-  instituciones: number;
-  [key: string]: any;
+  proveedores: number;
 }
 
 interface MetricaTemporalProps {
@@ -71,18 +79,33 @@ interface MetricaTemporalProps {
   height?: number;
 }
 
-// Datos para dashboard desde DataManager (calculados de CSV)
-const DASH_DEFAULT = { kpi_metrics: { total_contratos: 0, total_carteles: 0, total_proveedores: 0, total_ofertas: 0, total_lineas: 0, promedio_lineas_por_cartel: 0, tasa_exito: 0, crecimiento_contratos: 0, contratos_recientes: 0, carteles_recientes: 0 }, sector_analysis: [] as any[], monto_total_contratos: 0, tendencias_mensuales: [] as any[], tendencias_diarias: [] as any[] };
-const COMP_DEFAULT = { top_instituciones: [], top_proveedores: [], offers_histogram: [], tta_distribution: [], tta_stats: { n: 0, mediana: 0, p90: 0 }, hhi_market: { hhi: 0, top5Share: 0 } } as any;
+// Paletas de color por defecto (estáticas, fuera del componente para que
+// las dependencias de useMemo sean estables entre renders)
+const COLORES_DEFECTO_CATEGORIA: Record<string, string> = {
+  'Mantenimiento, reparación y limpieza': '#3498db',
+  'Suministros de oficina y papelería': '#f39c12',
+  'Tecnología y sistemas': '#9b59b6',
+  'Vehículos, transporte y repuestos': '#16a085',
+  'Salud, medicina y laboratorio': '#e74c3c',
+  'Seguridad y vigilancia': '#8e44ad',
+  'Construcción y materiales de obra': '#d35400',
+  'Alimentos y servicios de catering': '#27ae60',
+  'Servicios profesionales y consultoría': '#1abc9c',
+  'Educación, cultura y recreación': '#e67e22',
+  'Logística y servicios generales': '#2ecc71',
+  'Herramientas industriales y electrodomésticos': '#c0392b',
+  'Otros': '#95a5a6'
+};
+const PALETA_TIPOS = ['#82ca9d', '#a0d8ef', '#f7b267', '#f79d84', '#c3aed6', '#a8e6cf', '#ffd3b6', '#ffaaa5'];
 
 // ================================
 // COMPONENTES AUXILIARES
 // ================================
 
-const KPICard: React.FC<KPICardProps> = ({ 
-  title, value, subtitle, trend, trendValue, icon, color, onClick, badge 
+const KPICard: React.FC<KPICardProps> = ({
+  title, value, subtitle, trend, trendValue, icon, color, onClick, badge
 }) => (
-  <div 
+  <div
     onClick={onClick}
     style={{
       background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 100%)',
@@ -123,7 +146,6 @@ const KPICard: React.FC<KPICardProps> = ({
       `;
     }}
   >
-    {/* Efecto shimmer de fondo */}
     <div style={{
       position: 'absolute',
       top: '-50%',
@@ -156,22 +178,22 @@ const KPICard: React.FC<KPICardProps> = ({
         {badge}
       </div>
     )}
-    
+
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
       <div style={{ flex: 1, transform: 'translateZ(5px)' }}>
-        <h3 style={{ 
-          margin: '0 0 12px 0', 
-          fontSize: '13px', 
-          fontWeight: 600, 
+        <h3 style={{
+          margin: '0 0 12px 0',
+          fontSize: '13px',
+          fontWeight: 600,
           color: '#6c757d',
           letterSpacing: '0.03em',
           textTransform: 'uppercase'
         }}>
           {title}
         </h3>
-        <div style={{ 
-          fontSize: '38px', 
-          fontWeight: 800, 
+        <div style={{
+          fontSize: '38px',
+          fontWeight: 800,
           color: '#2c3e50',
           marginBottom: '8px',
           lineHeight: 1.1,
@@ -181,12 +203,12 @@ const KPICard: React.FC<KPICardProps> = ({
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text'
         }}>
-          {typeof value === 'number' ? value.toLocaleString() : value}
+          {typeof value === 'number' ? value.toLocaleString('es-CR') : value}
         </div>
         {subtitle && (
-          <p style={{ 
-            margin: '0 0 12px 0', 
-            fontSize: '13px', 
+          <p style={{
+            margin: '0 0 12px 0',
+            fontSize: '13px',
             color: '#adb5bd',
             fontWeight: 500,
             letterSpacing: '0.01em'
@@ -195,9 +217,9 @@ const KPICard: React.FC<KPICardProps> = ({
           </p>
         )}
         {trend && trendValue && (
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
             marginTop: '12px',
             fontSize: '13px',
             fontWeight: 600,
@@ -208,24 +230,24 @@ const KPICard: React.FC<KPICardProps> = ({
             width: 'fit-content',
             gap: '6px'
           }}>
-            {trend === 'up' ? <TrendingUp size={16} /> : 
-             trend === 'down' ? <TrendingDown size={16} /> : 
+            {trend === 'up' ? <TrendingUp size={16} /> :
+             trend === 'down' ? <TrendingDown size={16} /> :
              <Activity size={16} />}
             <span>{trendValue}</span>
           </div>
         )}
       </div>
-      <div 
+      <div
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'translateZ(20px) scale(1.2) rotateZ(10deg)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = 'translateZ(10px) scale(1) rotateZ(0deg)';
         }}
-        style={{ 
-          width: '72px', 
-          height: '72px', 
-          borderRadius: '20px', 
+        style={{
+          width: '72px',
+          height: '72px',
+          borderRadius: '20px',
           background: `linear-gradient(135deg, ${color}15 0%, ${color}35 100%)`,
           display: 'flex',
           alignItems: 'center',
@@ -246,7 +268,7 @@ const KPICard: React.FC<KPICardProps> = ({
 );
 
 const MetricaTemporalChart: React.FC<MetricaTemporalProps> = ({ data, title, height = 300 }) => (
-  <div 
+  <div
     onMouseEnter={(e) => {
       e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
       e.currentTarget.style.boxShadow = `
@@ -282,7 +304,6 @@ const MetricaTemporalChart: React.FC<MetricaTemporalProps> = ({ data, title, hei
     transformStyle: 'preserve-3d',
     willChange: 'transform, box-shadow'
   }}>
-    {/* Efecto shimmer */}
     <div style={{
       position: 'absolute',
       top: '-50%',
@@ -294,10 +315,10 @@ const MetricaTemporalChart: React.FC<MetricaTemporalProps> = ({ data, title, hei
       animation: 'shimmer 6s linear infinite',
       pointerEvents: 'none'
     }} />
-    
-    <h3 style={{ 
-      margin: '0 0 20px 0', 
-      fontSize: '18px', 
+
+    <h3 style={{
+      margin: '0 0 20px 0',
+      fontSize: '18px',
       fontWeight: 700,
       display: 'flex',
       alignItems: 'center',
@@ -306,7 +327,7 @@ const MetricaTemporalChart: React.FC<MetricaTemporalProps> = ({ data, title, hei
       zIndex: 1,
       letterSpacing: '-0.01em'
     }}>
-      <Calendar size={20} style={{ 
+      <Calendar size={20} style={{
         color: '#667eea',
         filter: 'drop-shadow(0 2px 8px rgba(102, 126, 234, 0.4))',
         animation: 'glow-pulse 2.5s ease-in-out infinite'
@@ -320,58 +341,64 @@ const MetricaTemporalChart: React.FC<MetricaTemporalProps> = ({ data, title, hei
         {title}
       </span>
     </h3>
-    
-    <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={data}>
-        <defs>
-          <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#667eea" stopOpacity={0.8}/>
-            <stop offset="95%" stopColor="#667eea" stopOpacity={0.1}/>
-          </linearGradient>
-        </defs>
-  <XAxis dataKey={data && data.length && 'dia' in data[0] ? 'dia' : 'mes'} />
-        <YAxis />
-        <Tooltip formatter={(value: any) => [value.toLocaleString(), 'Carteles']} />
-        <Area 
-          type="monotone" 
-          dataKey="cantidad" 
-          stroke="#667eea" 
-          fillOpacity={1} 
-          fill="url(#colorGradient)" 
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+
+    {data.length === 0 ? (
+      <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#adb5bd', fontSize: 14 }}>
+        Sin datos para el rango seleccionado
+      </div>
+    ) : (
+      <ResponsiveContainer width="100%" height={height}>
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#667eea" stopOpacity={0.8}/>
+              <stop offset="95%" stopColor="#667eea" stopOpacity={0.1}/>
+            </linearGradient>
+          </defs>
+          <XAxis dataKey="mes" />
+          <YAxis />
+          <Tooltip formatter={(value: any) => [value.toLocaleString('es-CR'), 'Procedimientos']} />
+          <Area
+            type="monotone"
+            dataKey="cantidad"
+            stroke="#667eea"
+            fillOpacity={1}
+            fill="url(#colorGradient)"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    )}
   </div>
 );
 
-const SectorCard: React.FC<{ sector: any; index: number }> = ({ sector, index }) => (
-  <div 
+const SectorCard: React.FC<{ sector: SectorData; index: number }> = ({ sector, index }) => (
+  <div
     onMouseEnter={(e) => {
       e.currentTarget.style.transform = 'translateY(-6px) translateZ(10px) rotateX(3deg) scale(1.02)';
-      e.currentTarget.style.boxShadow = index < 3 
+      e.currentTarget.style.boxShadow = index < 3
         ? '0 12px 35px rgba(102, 126, 234, 0.3), 0 0 0 2px rgba(102, 126, 234, 0.4) inset'
         : '0 8px 25px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.3) inset';
     }}
     onMouseLeave={(e) => {
       e.currentTarget.style.transform = 'translateY(0) translateZ(0) rotateX(0deg) scale(1)';
-      e.currentTarget.style.boxShadow = index < 3 
+      e.currentTarget.style.boxShadow = index < 3
         ? '0 6px 20px rgba(102, 126, 234, 0.2)'
         : '0 4px 12px rgba(0,0,0,0.08)';
     }}
     style={{
-    background: index < 3 
-      ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.12) 50%, rgba(240, 147, 251, 0.08) 100%)' 
+    background: index < 3
+      ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.12) 50%, rgba(240, 147, 251, 0.08) 100%)'
       : 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.88) 100%)',
     backdropFilter: 'blur(15px) saturate(160%)',
     WebkitBackdropFilter: 'blur(15px) saturate(160%)',
-    border: index < 3 
-      ? '2px solid rgba(102, 126, 234, 0.4)' 
+    border: index < 3
+      ? '2px solid rgba(102, 126, 234, 0.4)'
       : '2px solid rgba(233, 236, 239, 0.6)',
     borderRadius: '16px',
     padding: '20px',
     marginBottom: '14px',
     transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-    boxShadow: index < 3 
+    boxShadow: index < 3
       ? '0 6px 20px rgba(102, 126, 234, 0.2)'
       : '0 4px 12px rgba(0,0,0,0.08)',
     position: 'relative',
@@ -381,7 +408,6 @@ const SectorCard: React.FC<{ sector: any; index: number }> = ({ sector, index })
     willChange: 'transform, box-shadow'
   }}
   >
-    {/* Efecto shimmer para top 3 */}
     {index < 3 && (
       <div style={{
         position: 'absolute',
@@ -395,18 +421,11 @@ const SectorCard: React.FC<{ sector: any; index: number }> = ({ sector, index })
         pointerEvents: 'none'
       }} />
     )}
-    
+
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1 }}>
         <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div 
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.15) rotateZ(5deg)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1) rotateZ(0deg)';
-            }}
-            style={{
+          <div style={{
             width: '20px',
             height: '20px',
             backgroundColor: sector.color,
@@ -415,8 +434,8 @@ const SectorCard: React.FC<{ sector: any; index: number }> = ({ sector, index })
             transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
             willChange: 'transform'
           }} />
-          <span style={{ 
-            fontWeight: 700, 
+          <span style={{
+            fontWeight: 700,
             fontSize: '13px',
             color: '#2c3e50',
             letterSpacing: '-0.01em'
@@ -424,14 +443,7 @@ const SectorCard: React.FC<{ sector: any; index: number }> = ({ sector, index })
             {sector.name}
           </span>
           {index < 3 && (
-            <span 
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.1) rotateZ(-3deg)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1) rotateZ(0deg)';
-              }}
-              style={{
+            <span style={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               color: 'white',
               padding: '4px 10px',
@@ -440,42 +452,37 @@ const SectorCard: React.FC<{ sector: any; index: number }> = ({ sector, index })
               fontWeight: 700,
               boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
               letterSpacing: '0.03em',
-              transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-              willChange: 'transform',
               animation: index === 0 ? 'pulse 2s ease-in-out infinite' : 'none'
             }}>
               TOP {index + 1}
             </span>
           )}
-        </div>        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '1fr 1fr 1fr', 
-          gap: '8px', 
+        </div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr 1fr',
+          gap: '8px',
           marginTop: '8px',
           fontSize: '12px'
         }}>
           <div>
-            <span style={{ color: '#6c757d' }}>Licitaciones: </span>
-            <span style={{ fontWeight: 600, color: '#28a745' }}>{sector.count}</span>
+            <span style={{ color: '#6c757d' }}>Líneas: </span>
+            <span style={{ fontWeight: 600, color: '#28a745' }}>{sector.count.toLocaleString('es-CR')}</span>
           </div>
           <div>
-            <span style={{ color: '#6c757d' }}>Porcentaje: </span>
-            <span style={{ fontWeight: 600, color: '#667eea' }}>{sector.value}%</span>
+            <span style={{ color: '#6c757d' }}>Participación: </span>
+            <span style={{ fontWeight: 600, color: '#667eea' }}>{sector.value.toFixed(1)}%</span>
           </div>
           <div>
-            <span style={{ color: '#6c757d' }}>Instituciones: </span>
-            <span style={{ fontWeight: 600, color: '#f39c12' }}>{sector.instituciones || 'N/A'}</span>
+            <span style={{ color: '#6c757d' }}>Proveedores: </span>
+            <span style={{ fontWeight: 600, color: '#f39c12' }}>{sector.proveedores || 'N/A'}</span>
           </div>
         </div>
-        
+
         <div style={{ marginTop: '8px', fontSize: '11px' }}>
           <span style={{ color: '#6c757d' }}>Monto Total: </span>
           {(() => { const v = withTooltip(formatCRCCompact(sector.monto_total || 0), sector.monto_total); return (
             <span title={v.title} style={{ fontWeight: 600, color: '#dc3545' }}>{v.text}</span>
-          );})()}
-          <span style={{ color: '#6c757d', marginLeft: '8px' }}>Promedio: </span>
-          {(() => { const v = withTooltip(formatCRCCompact(sector.promedio_monto || 0), sector.promedio_monto); return (
-            <span title={v.title} style={{ fontWeight: 600, color: '#17a2b8' }}>{v.text}</span>
           );})()}
         </div>
       </div>
@@ -484,7 +491,7 @@ const SectorCard: React.FC<{ sector: any; index: number }> = ({ sector, index })
 );
 
 const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
-  <div 
+  <div
     onMouseEnter={(e) => {
       e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
       e.currentTarget.style.boxShadow = `
@@ -520,7 +527,6 @@ const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
     transformStyle: 'preserve-3d',
     willChange: 'transform, box-shadow'
   }}>
-    {/* Efecto shimmer */}
     <div style={{
       position: 'absolute',
       top: '-50%',
@@ -532,10 +538,10 @@ const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
       animation: 'shimmer 7s linear infinite',
       pointerEvents: 'none'
     }} />
-    
-    <h3 style={{ 
-      margin: '0 0 20px 0', 
-      fontSize: '18px', 
+
+    <h3 style={{
+      margin: '0 0 20px 0',
+      fontSize: '18px',
       fontWeight: 700,
       display: 'flex',
       alignItems: 'center',
@@ -544,7 +550,7 @@ const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
       zIndex: 1,
       letterSpacing: '-0.01em'
     }}>
-      <AlertCircle size={20} style={{ 
+      <AlertCircle size={20} style={{
         color: '#f39c12',
         filter: 'drop-shadow(0 2px 8px rgba(243, 156, 18, 0.4))',
         animation: 'glow-pulse 2.5s ease-in-out infinite'
@@ -558,10 +564,10 @@ const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
         Alertas Inteligentes ({alerts.length})
       </span>
     </h3>
-    
+
     <div style={{ maxHeight: '320px', overflowY: 'auto', position: 'relative', zIndex: 1 }}>
       {alerts.map((alert) => (
-        <div 
+        <div
           key={alert.id}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'translateX(8px) scale(1.02)';
@@ -575,12 +581,12 @@ const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
           padding: '20px 22px',
           borderRadius: '16px',
           marginBottom: '14px',
-          background: alert.type === 'error' 
-            ? 'linear-gradient(135deg, rgba(220, 53, 69, 0.12) 0%, rgba(220, 53, 69, 0.08) 100%)' 
-            : alert.type === 'warning' 
-            ? 'linear-gradient(135deg, rgba(243, 156, 18, 0.12) 0%, rgba(243, 156, 18, 0.08) 100%)' 
-            : alert.type === 'success' 
-            ? 'linear-gradient(135deg, rgba(40, 167, 69, 0.12) 0%, rgba(40, 167, 69, 0.08) 100%)' 
+          background: alert.type === 'error'
+            ? 'linear-gradient(135deg, rgba(220, 53, 69, 0.12) 0%, rgba(220, 53, 69, 0.08) 100%)'
+            : alert.type === 'warning'
+            ? 'linear-gradient(135deg, rgba(243, 156, 18, 0.12) 0%, rgba(243, 156, 18, 0.08) 100%)'
+            : alert.type === 'success'
+            ? 'linear-gradient(135deg, rgba(40, 167, 69, 0.12) 0%, rgba(40, 167, 69, 0.08) 100%)'
             : 'linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(102, 126, 234, 0.08) 100%)',
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
@@ -593,8 +599,8 @@ const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
           transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
           willChange: 'transform, box-shadow'
         }}>
-          <div style={{ 
-            fontWeight: 700, 
+          <div style={{
+            fontWeight: 700,
             fontSize: '13px',
             marginBottom: '6px',
             color: '#2c3e50',
@@ -602,8 +608,8 @@ const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
           }}>
             {alert.title}
           </div>
-          <div style={{ 
-            fontSize: '12px', 
+          <div style={{
+            fontSize: '12px',
             color: '#495057',
             marginBottom: '10px',
             lineHeight: 1.5,
@@ -611,8 +617,8 @@ const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
           }}>
             {alert.message}
           </div>
-          <div style={{ 
-            fontSize: '12px', 
+          <div style={{
+            fontSize: '12px',
             color: '#adb5bd',
             fontWeight: 500
           }}>
@@ -629,38 +635,31 @@ const AlertPanel: React.FC<{ alerts: AlertItem[] }> = ({ alerts }) => (
 // ================================
 
 export const ModernDashboard: React.FC = () => {
-  const { 
-    // instituciones, // Unused - available if needed
-    error,
-    isLoaded
-  } = useSicop();
+  // Rango de periodo (yyyymm) — único filtro que soportan los endpoints
+  // de dashboard del backend.
+  const [desdeSel, setDesdeSel] = useState<number | undefined>(undefined);
+  const [hastaSel, setHastaSel] = useState<number | undefined>(undefined);
+  const [desde, setDesde] = useState<number | undefined>(undefined);
+  const [hasta, setHasta] = useState<number | undefined>(undefined);
 
-  const [selectedInstitutions, setSelectedInstitutions] = useState<string[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [searchKeywords, setSearchKeywords] = useState<string>('');
-  const [filtersApplied, setFiltersApplied] = useState<{ institucion?: string[]; sector?: string[]; keywords?: string[] }>({});
-  const [isLoadingFilters, setIsLoadingFilters] = useState(false);
-  
   // Estados para el modal de configuración de colores
   const [showColorSettings, setShowColorSettings] = useState(false);
   const [customColors, setCustomColors] = useState<Record<string, string>>({});
-  const [customSubcategoryColors, setCustomSubcategoryColors] = useState<Record<string, string>>({});
+  const [customTipoColors, setCustomTipoColors] = useState<Record<string, string>>({});
   const [tempColors, setTempColors] = useState<Record<string, string>>({});
-  const [tempSubColors, setTempSubColors] = useState<Record<string, string>>({});
+  const [tempTipoColors, setTempTipoColors] = useState<Record<string, string>>({});
 
-  // Sincronizar estados temporales cuando se abre el modal
   useEffect(() => {
     if (showColorSettings) {
       setTempColors({ ...customColors });
-      setTempSubColors({ ...customSubcategoryColors });
+      setTempTipoColors({ ...customTipoColors });
     }
-  }, [showColorSettings, customColors, customSubcategoryColors]);
+  }, [showColorSettings, customColors, customTipoColors]);
 
-  // Cargar colores personalizados desde localStorage al montar el componente
   useEffect(() => {
     const savedColors = localStorage.getItem('sicop_custom_category_colors');
-    const savedSubColors = localStorage.getItem('sicop_custom_subcategory_colors');
-    
+    const savedTipoColors = localStorage.getItem('sicop_custom_subcategory_colors');
+
     if (savedColors) {
       try {
         setCustomColors(JSON.parse(savedColors));
@@ -668,288 +667,168 @@ export const ModernDashboard: React.FC = () => {
         console.error('Error al cargar colores personalizados:', e);
       }
     }
-    
-    if (savedSubColors) {
+
+    if (savedTipoColors) {
       try {
-        setCustomSubcategoryColors(JSON.parse(savedSubColors));
+        setCustomTipoColors(JSON.parse(savedTipoColors));
       } catch (e) {
-        console.error('Error al cargar colores de subcategorías:', e);
+        console.error('Error al cargar colores de tipos de procedimiento:', e);
       }
     }
   }, []);
 
-  // Función para guardar colores personalizados
-  const saveCustomColors = (colors: Record<string, string>, subColors: Record<string, string>) => {
+  const saveCustomColors = (colors: Record<string, string>, tipoColors: Record<string, string>) => {
     localStorage.setItem('sicop_custom_category_colors', JSON.stringify(colors));
-    localStorage.setItem('sicop_custom_subcategory_colors', JSON.stringify(subColors));
+    localStorage.setItem('sicop_custom_subcategory_colors', JSON.stringify(tipoColors));
     setCustomColors(colors);
-    setCustomSubcategoryColors(subColors);
+    setCustomTipoColors(tipoColors);
   };
 
-  // Función para resetear colores a los valores por defecto
   const resetColors = () => {
     localStorage.removeItem('sicop_custom_category_colors');
     localStorage.removeItem('sicop_custom_subcategory_colors');
     setCustomColors({});
-    setCustomSubcategoryColors({});
+    setCustomTipoColors({});
   };
 
   // ================================
-  // DATOS REALES MEJORADOS
+  // DATOS DESDE LA API
   // ================================
 
-  // Cargar métricas del DataManager (con filtros aplicados)
-  // Importante: dependemos también de isLoaded para recalcular una vez que DataManager termina la carga inicial.
-  // Antes sólo dependía de filtersApplied, por lo que tras la carga asíncrona los arrays (incluyendo top_proveedores)
-  // permanecían vacíos hasta aplicar un filtro manual.
-  // Recalcular métricas sólo cuando cambian filtros; la carga inicial ya dispara un setState en el provider
-  const dashboardData = useMemo(
-    () => dataManager.getDashboardMetrics?.(filtersApplied) || DASH_DEFAULT,
-    [filtersApplied]
-  );
-  const complementData = useMemo(
-    () => dataManager.getComplementaryDashboard?.(filtersApplied) || COMP_DEFAULT,
-    [filtersApplied]
-  );
+  const rango = useMemo(() => ({ desde, hasta }), [desde, hasta]);
 
-  // Datos para los filtros avanzados
-  const availableInstitutions = useMemo(() => {
-    if (!isLoaded) return [];
-    return dataManager.getAvailableInstitutions?.() || [];
-  }, [isLoaded]);
+  const filtrosQuery = useFiltros();
+  const resumenQuery = useResumen(rango);
+  const serieQuery = useSerie(rango);
+  const categoriasQuery = useCategorias({ ...rango, limite: 20 });
+  const tiposQuery = useTiposProcedimiento(rango);
+  const topInstitucionesQuery = useTopInstituciones({ ...rango, limite: 10 });
+  const topProveedoresQuery = useTopProveedores({ ...rango, limite: 10 });
 
-  const availableCategories = useMemo(() => {
-    if (!isLoaded) return [];
-    return dataManager.getAvailableCategories?.() || [];
-  }, [isLoaded]);
+  const isLoadingFilters = [
+    resumenQuery.isFetching,
+    serieQuery.isFetching,
+    categoriasQuery.isFetching,
+    tiposQuery.isFetching,
+    topInstitucionesQuery.isFetching,
+    topProveedoresQuery.isFetching
+  ].some(Boolean);
 
-  // TEMP DEBUG: Log TTA data incoming from DataManager
-  useEffect(() => {
-    if (!isLoaded) return;
-    try {
-      const distLen = complementData?.tta_distribution?.length || 0;
-      const sumCarteles = (complementData?.tta_distribution || []).reduce((s: number, r: any) => s + (r.carteles || 0), 0);
-      console.log('[ModernDashboard][TTA] complementData change:', {
-        distLen,
-        distribution: complementData?.tta_distribution,
-        stats: complementData?.tta_stats,
-        sumCarteles,
-        filtersApplied
-      });
-    } catch (e) {
-      console.warn('[ModernDashboard][TTA] Logging error', e);
-    }
-  }, [complementData, filtersApplied, isLoaded]);
-
-  // Escuchar cambios en configuración de categorías para forzar recálculo
-  useEffect(() => {
-    const handleCategoryConfigUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      console.log('🔄 Configuración de categorías actualizada, forzando recálculo de dashboard', customEvent.detail);
-      
-      // Invalidar caché del DataManager para forzar recálculo
-      if (dataManager.invalidarCacheSectores) {
-        console.log('[ModernDashboard] 🗑️ Invalidando caché de sectores del DataManager...');
-        dataManager.invalidarCacheSectores();
-      }
-      
-      // Forzar recálculo del dashboard manteniendo filtros actuales
-      setFiltersApplied(prev => ({ ...prev })); // Trigger re-render sin cambiar filtros
-      
-      // Mostrar notificación al usuario
-      console.log('✅ Dashboard actualizado con las nuevas categorías');
-    };
-
-    const handleManualCategoryUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      console.log('🔄 Categoría manual actualizada, recalculando dashboard', customEvent.detail);
-      
-      // Invalidar caché del DataManager para forzar recálculo
-      if (dataManager.invalidarCacheSectores) {
-        console.log('[ModernDashboard] 🗑️ Invalidando caché de sectores del DataManager...');
-        dataManager.invalidarCacheSectores();
-      }
-      
-      // Forzar recálculo del dashboard
-      setFiltersApplied(prev => ({ ...prev })); // Trigger re-render
-      
-      // Mostrar notificación
-      const detail = customEvent.detail;
-      if (detail?.isNew) {
-        console.log(`✅ Nueva categoría "${detail.category?.nombre}" agregada. Dashboard actualizado.`);
-      } else {
-        console.log(`✅ Categoría actualizada. Dashboard recalculado.`);
-      }
-    };
-
-    window.addEventListener('categoryConfigurationUpdated', handleCategoryConfigUpdate);
-    window.addEventListener('manualCategoriesUpdated', handleManualCategoryUpdate);
-
-    return () => {
-      window.removeEventListener('categoryConfigurationUpdated', handleCategoryConfigUpdate);
-      window.removeEventListener('manualCategoriesUpdated', handleManualCategoryUpdate);
-    };
-  }, []);
-
-  // Sectores con datos calculados del análisis
-  const sectoresReales = useMemo((): SectorData[] => {
-    const coloresDefecto: Record<string, string> = {
-      'Mantenimiento, reparación y limpieza': '#3498db',
-      'Suministros de oficina y papelería': '#f39c12',
-      'Tecnología y sistemas': '#9b59b6',
-      'Vehículos, transporte y repuestos': '#16a085',
-      'Salud, medicina y laboratorio': '#e74c3c',
-      'Seguridad y vigilancia': '#8e44ad',
-      'Construcción y materiales de obra': '#d35400',
-      'Alimentos y servicios de catering': '#27ae60',
-      'Servicios profesionales y consultoría': '#1abc9c',
-      'Educación, cultura y recreación': '#e67e22',
-      'Logística y servicios generales': '#2ecc71',
-      'Herramientas industriales y electrodomésticos': '#c0392b',
-      'Otros': '#95a5a6'
-    };
-
-    return (dashboardData.sector_analysis || []).map((sector: any) => {
-      const sectorName = sector.sector.replace('_', ' ');
-      // Usar color personalizado si existe, sino usar el color por defecto
-      const color = customColors[sectorName] || coloresDefecto[sector.sector as keyof typeof coloresDefecto] || '#95a5a6';
-      
-      return {
-        name: sectorName,
-        value: sector.percentage,
-        count: sector.count,
-        color,
-        monto_total: sector.total_monto,
-        promedio_monto: sector.promedio_monto,
-        instituciones: sector.instituciones_unicas
-      };
-    });
-  }, [dashboardData, customColors]);
-
-  // Opciones de sectores disponibles para filtrado (futuro uso)
-  useMemo(() => {
-    const list = (dashboardData.sector_analysis || []).map((s: any) => s.sector);
-    return Array.from(new Set(list));
-  }, [dashboardData]);
-
-  // ================================
-  // FUNCIONES DE MANEJO DE FILTROS
-  // ================================
-
-  const handleApplyFilters = async () => {
-    setIsLoadingFilters(true);
-    try {
-      const keywords = searchKeywords.trim() 
-        ? searchKeywords.split(/\s+/).filter(k => k.length > 0)
-        : [];
-      
-      setFiltersApplied({
-        ...(selectedInstitutions.length > 0 ? { institucion: selectedInstitutions } : {}),
-        ...(selectedCategories.length > 0 ? { sector: selectedCategories } : {}),
-        ...(keywords.length > 0 ? { keywords } : {})
-      });
-    } finally {
-      setTimeout(() => setIsLoadingFilters(false), 500); // Small delay for UX
-    }
+  const handleApplyFilters = () => {
+    setDesde(desdeSel);
+    setHasta(hastaSel);
   };
 
   const handleClearFilters = () => {
-    setSelectedInstitutions([]);
-    setSelectedCategories([]);
-    setSearchKeywords('');
-    setFiltersApplied({});
+    setDesdeSel(undefined);
+    setHastaSel(undefined);
+    setDesde(undefined);
+    setHasta(undefined);
   };
 
-  // Subcategorías agregadas por filtro: si no hay filtro de sector, combina todas
-  const subcategoriasData = useMemo(() => {
-    const coloresDefectoSub = ["#82ca9d", "#a0d8ef", "#f7b267", "#f79d84", "#c3aed6", "#a8e6cf", "#ffd3b6", "#ffaaa5"];
-    const analysis = (dashboardData as any).subcategory_analysis || {};
-    const sectoresFiltrados: string[] = (filtersApplied.sector && filtersApplied.sector.length)
-      ? (filtersApplied.sector as string[])
-      : Object.keys(analysis);
-    const agg: Record<string, number> = {};
-    sectoresFiltrados.forEach((sec) => {
-      const arr = analysis[sec] || [];
-      arr.forEach((item: any) => {
-        agg[item.subcategory] = (agg[item.subcategory] || 0) + (item.count || 0);
-      });
+  // Categorías (objeto de gasto) tal como las agrega el backend
+  const sectoresReales = useMemo((): SectorData[] => {
+    return (categoriasQuery.data || []).map((cat) => {
+      const color = customColors[cat.objeto_gasto] || COLORES_DEFECTO_CATEGORIA[cat.objeto_gasto] || '#95a5a6';
+      return {
+        name: cat.objeto_gasto,
+        value: cat.participacion_pct,
+        count: cat.lineas,
+        color,
+        monto_total: cat.monto_crc,
+        promedio_monto: cat.lineas > 0 ? cat.monto_crc / cat.lineas : 0,
+        proveedores: cat.proveedores_distintos
+      };
     });
-    return Object.entries(agg)
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, value], index) => ({
-        name,
-        value,
-        // Usar color personalizado si existe, sino usar color por defecto
-        color: customSubcategoryColors[name] || coloresDefectoSub[index % coloresDefectoSub.length]
-      }));
-  }, [dashboardData, filtersApplied, customSubcategoryColors]);
+  }, [categoriasQuery.data, customColors]);
 
-  // Métricas calculadas con datos reales
+  // Distribución por tipo de procedimiento (reemplaza a las subcategorías,
+  // que ya no existen en el contrato de la API)
+  const tiposDistribucion = useMemo(() => {
+    return (tiposQuery.data || []).map((t, index) => ({
+      name: t.tipo_procedimiento,
+      value: t.participacion_pct,
+      lineas: t.lineas,
+      procedimientos: t.procedimientos,
+      monto_crc: t.monto_crc,
+      color: customTipoColors[t.tipo_procedimiento] || PALETA_TIPOS[index % PALETA_TIPOS.length]
+    }));
+  }, [tiposQuery.data, customTipoColors]);
+
+  // Métricas derivadas de los KPIs ya agregados por el backend (razones
+  // simples entre agregados, no recomputación sobre filas crudas)
+  const resumen = resumenQuery.data;
   const metricsReales = useMemo(() => {
-    const data = dashboardData.kpi_metrics;
+    if (!resumen) {
+      return { tasaAdjudicacion: '0.0', competenciaPromedio: '0.0', eficienciaProveedores: '0.0' };
+    }
     return {
-      tasaConversion: (data.total_carteles ? (data.total_contratos / data.total_carteles) * 100 : 0).toFixed(1),
-      eficienciaProveedores: (data.total_proveedores ? (data.total_ofertas / data.total_proveedores) * 100 : 0).toFixed(1),
-      competenciaPromedio: (data.total_carteles ? (data.total_ofertas / data.total_carteles) : 0).toFixed(1),
-      montoTotalEstimado: sectoresReales.reduce((sum, sector) => sum + sector.monto_total, 0),
-      sectorMayor: sectoresReales[0]?.name || 'N/A',
-      proporcionServicios: sectoresReales
-        .filter(s => s.name.toLowerCase().includes('servicio'))
-        .reduce((sum, s) => sum + s.value, 0)
+      tasaAdjudicacion: (resumen.procedimientos ? (resumen.ordenes / resumen.procedimientos) * 100 : 0).toFixed(1),
+      competenciaPromedio: (resumen.procedimientos ? (resumen.ofertas / resumen.procedimientos) : 0).toFixed(1),
+      eficienciaProveedores: (resumen.proveedores ? (resumen.ofertas / resumen.proveedores) * 100 : 0).toFixed(1)
     };
-  }, [sectoresReales, dashboardData]);
+  }, [resumen]);
 
-  // Tendencias diarias desde DataManager (datos reales)
-  const tendenciasDiarias = useMemo(() => dashboardData.tendencias_diarias || [], [dashboardData]);
-  const offersHistogram = useMemo(() => complementData.offers_histogram || [], [complementData]);
-  const ttaDistribution = useMemo(() => complementData.tta_distribution || [], [complementData]);
-  const ttaStats = useMemo(() => complementData.tta_stats || { n: 0, mediana: 0, p90: 0 }, [complementData]);
-  const topInstituciones = useMemo(() => complementData.top_instituciones || [], [complementData]);
-  const topProveedores = useMemo(() => complementData.top_proveedores || [], [complementData]);
-  const hhiMarket = useMemo(() => complementData.hhi_market || { hhi: 0, top5Share: 0 }, [complementData]);
+  const tendenciasMensuales = useMemo(
+    () => (serieQuery.data || []).map(p => ({ mes: p.etiqueta, cantidad: p.procedimientos, monto: p.monto_crc })),
+    [serieQuery.data]
+  );
 
-  // Alertas inteligentes con datos reales
-  const alertasInteligentes: AlertItem[] = useMemo(() => [
-    {
-      id: 'sector-dominante',
-      type: 'info',
-      title: 'Sector Dominante Detectado',
-      message: `${sectoresReales[0]?.name} representa el ${sectoresReales[0]?.value}% de las licitaciones (${sectoresReales[0]?.count.toLocaleString()} procedimientos)`,
-      timestamp: new Date()
-    },
-    {
-      id: 'tasa-conversion',
-      type: metricsReales.tasaConversion > '100' ? 'warning' : 'success',
-      title: 'Tasa de Conversión',
-      message: `${metricsReales.tasaConversion}% de conversión carteles-contratos. ${parseFloat(metricsReales.tasaConversion) > 100 ? 'Algunos procedimientos generan múltiples contratos' : 'Ratio normal'}`,
+  const topInstituciones = topInstitucionesQuery.data || [];
+  const topProveedores = topProveedoresQuery.data || [];
+
+  // Alertas inteligentes construidas a partir de agregados del backend
+  const alertasInteligentes: AlertItem[] = useMemo(() => {
+    if (!resumen) return [];
+    const alerts: AlertItem[] = [];
+
+    if (sectoresReales[0]) {
+      alerts.push({
+        id: 'sector-dominante',
+        type: 'info',
+        title: 'Categoría Dominante Detectada',
+        message: `${sectoresReales[0].name} representa el ${sectoresReales[0].value.toFixed(1)}% de las líneas (${sectoresReales[0].count.toLocaleString('es-CR')} líneas)`,
+        timestamp: new Date()
+      });
+    }
+
+    alerts.push({
+      id: 'tasa-adjudicacion',
+      type: parseFloat(metricsReales.tasaAdjudicacion) < 50 ? 'warning' : 'success',
+      title: 'Tasa de Adjudicación',
+      message: `${metricsReales.tasaAdjudicacion}% de los procedimientos generaron una orden. ${parseFloat(metricsReales.tasaAdjudicacion) < 50 ? 'Menos de la mitad concluyó en orden.' : 'Ratio saludable de cierre.'}`,
       timestamp: moment().subtract(15, 'minutes').toDate()
-    },
-    {
+    });
+
+    alerts.push({
       id: 'competencia',
-      type: parseFloat(metricsReales.competenciaPromedio) < 5 ? 'warning' : 'success',
+      type: parseFloat(metricsReales.competenciaPromedio) < 3 ? 'warning' : 'success',
       title: 'Nivel de Competencia',
-      message: `Promedio de ${metricsReales.competenciaPromedio} ofertas por cartel. ${parseFloat(metricsReales.competenciaPromedio) < 5 ? 'Competencia limitada' : 'Competencia saludable'}`,
+      message: `Promedio de ${metricsReales.competenciaPromedio} ofertas por procedimiento. ${parseFloat(metricsReales.competenciaPromedio) < 3 ? 'Competencia limitada.' : 'Competencia saludable.'}`,
       timestamp: moment().subtract(30, 'minutes').toDate()
-    },
-    {
+    });
+
+    alerts.push({
       id: 'monto-total',
       type: 'info',
       title: 'Volumen Financiero',
-      message: `Monto total: ₡${((dashboardData.monto_total_contratos || 0)/1_000_000_000).toFixed(1)} mil millones`,
+      message: `Monto adjudicado: ${formatCurrency(resumen.monto_crc, { compact: true })}${resumen.variacion_monto_pct != null ? ` (${resumen.variacion_monto_pct >= 0 ? '+' : ''}${resumen.variacion_monto_pct.toFixed(1)}% vs. periodo anterior)` : ''}`,
       timestamp: moment().subtract(1, 'hour').toDate()
-    }
-  ], [sectoresReales, metricsReales, dashboardData]);
+    });
+
+    return alerts;
+  }, [resumen, sectoresReales, metricsReales]);
 
   // ================================
   // RENDERIZADO
   // ================================
 
-  if (!isLoaded) {
+  if (resumenQuery.isLoading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '400px',
         fontSize: '18px',
         color: '#6c757d'
@@ -960,7 +839,7 @@ export const ModernDashboard: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (resumenQuery.isError) {
     return (
       <div style={{
         background: '#fff5f5',
@@ -971,18 +850,35 @@ export const ModernDashboard: React.FC = () => {
       }}>
         <AlertTriangle size={48} color="#e53e3e" style={{ marginBottom: '12px' }} />
         <h3 style={{ color: '#e53e3e', marginBottom: '8px' }}>Error al cargar datos</h3>
-        <p style={{ color: '#a0aec0', margin: 0 }}>{error}</p>
+        <p style={{ color: '#a0aec0', margin: '0 0 16px 0' }}>
+          {(resumenQuery.error as Error)?.message || 'Ocurrió un error inesperado al consultar la API.'}
+        </p>
+        <button
+          onClick={() => resumenQuery.refetch()}
+          style={{
+            background: '#e53e3e',
+            color: 'white',
+            border: 'none',
+            padding: '10px 20px',
+            borderRadius: '10px',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Reintentar
+        </button>
       </div>
     );
   }
 
+  const sinDatos = !resumen || resumen.procedimientos === 0;
+
   // Renderizar modal de configuración de colores
   const renderColorSettingsModal = () => {
     if (!showColorSettings) return null;
-    
-    // Obtener todas las categorías y subcategorías únicas
+
     const allCategories = sectoresReales.map(s => s.name);
-    const allSubcategories = subcategoriasData.map((s: any) => s.name);
+    const allTipos = tiposDistribucion.map(t => t.name);
 
     return (
       <div style={{
@@ -1001,7 +897,7 @@ export const ModernDashboard: React.FC = () => {
       }}
       onClick={() => setShowColorSettings(false)}
       >
-        <div 
+        <div
           style={{
             background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.95) 100%)',
             borderRadius: '24px',
@@ -1015,7 +911,6 @@ export const ModernDashboard: React.FC = () => {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -1059,7 +954,6 @@ export const ModernDashboard: React.FC = () => {
             </button>
           </div>
 
-          {/* Categorías */}
           <div style={{ marginBottom: '32px' }}>
             <h3 style={{
               fontSize: '18px',
@@ -1070,7 +964,7 @@ export const ModernDashboard: React.FC = () => {
               alignItems: 'center',
               gap: '8px'
             }}>
-              📊 Categorías ({allCategories.length})
+              📊 Categorías de gasto ({allCategories.length})
             </h3>
             <div style={{
               display: 'grid',
@@ -1112,7 +1006,6 @@ export const ModernDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Subcategorías */}
           <div style={{ marginBottom: '24px' }}>
             <h3 style={{
               fontSize: '18px',
@@ -1123,7 +1016,7 @@ export const ModernDashboard: React.FC = () => {
               alignItems: 'center',
               gap: '8px'
             }}>
-              📋 Subcategorías ({allSubcategories.length})
+              📋 Tipos de procedimiento ({allTipos.length})
             </h3>
             <div style={{
               display: 'grid',
@@ -1133,8 +1026,8 @@ export const ModernDashboard: React.FC = () => {
               overflowY: 'auto',
               padding: '4px'
             }}>
-              {allSubcategories.map((subcategory: string) => (
-                <div key={subcategory} style={{
+              {allTipos.map((tipo: string) => (
+                <div key={tipo} style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '10px',
@@ -1145,8 +1038,8 @@ export const ModernDashboard: React.FC = () => {
                 }}>
                   <input
                     type="color"
-                    value={tempSubColors[subcategory] || subcategoriasData.find((s: any) => s.name === subcategory)?.color || '#82ca9d'}
-                    onChange={(e) => setTempSubColors({ ...tempSubColors, [subcategory]: e.target.value })}
+                    value={tempTipoColors[tipo] || tiposDistribucion.find((t) => t.name === tipo)?.color || '#82ca9d'}
+                    onChange={(e) => setTempTipoColors({ ...tempTipoColors, [tipo]: e.target.value })}
                     style={{
                       width: '36px',
                       height: '36px',
@@ -1164,14 +1057,13 @@ export const ModernDashboard: React.FC = () => {
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
                   }}>
-                    {subcategory}
+                    {tipo}
                   </span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Botones de acción */}
           <div style={{
             display: 'flex',
             gap: '12px',
@@ -1183,7 +1075,7 @@ export const ModernDashboard: React.FC = () => {
               onClick={() => {
                 resetColors();
                 setTempColors({});
-                setTempSubColors({});
+                setTempTipoColors({});
               }}
               style={{
                 padding: '12px 24px',
@@ -1207,7 +1099,7 @@ export const ModernDashboard: React.FC = () => {
             </button>
             <button
               onClick={() => {
-                saveCustomColors(tempColors, tempSubColors);
+                saveCustomColors(tempColors, tempTipoColors);
                 setShowColorSettings(false);
               }}
               style={{
@@ -1246,7 +1138,7 @@ export const ModernDashboard: React.FC = () => {
   return (
     <>
       {renderColorSettingsModal()}
-      <div style={{ 
+      <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
       padding: '70px 80px',
@@ -1256,8 +1148,7 @@ export const ModernDashboard: React.FC = () => {
       maxWidth: '1800px',
       margin: '0 auto'
     }}>
-      
-      {/* Partículas de fondo animadas */}
+
       <div style={{
         position: 'absolute',
         top: 0,
@@ -1285,7 +1176,6 @@ export const ModernDashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* Animaciones keyframes inyectadas */}
       <style>{`
         @keyframes float0 {
           0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.3; }
@@ -1323,7 +1213,7 @@ export const ModernDashboard: React.FC = () => {
           50% { transform: translateY(-8px) rotateX(2deg); }
         }
       `}</style>
-      
+
       {/* Header Premium con Glassmorphism Avanzado */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.2) 100%)',
@@ -1345,7 +1235,6 @@ export const ModernDashboard: React.FC = () => {
         willChange: 'transform',
         zIndex: 1
       }}>
-        {/* Brillo animado de fondo */}
         <div style={{
           position: 'absolute',
           top: '-50%',
@@ -1360,8 +1249,8 @@ export const ModernDashboard: React.FC = () => {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
           <div>
-            <h1 style={{ 
-              margin: '0 0 12px 0', 
+            <h1 style={{
+              margin: '0 0 12px 0',
               fontSize: '3.2em',
               fontWeight: 800,
               color: '#ffffff',
@@ -1378,8 +1267,8 @@ export const ModernDashboard: React.FC = () => {
             }}>
               🏛️ SICOP Analytics Pro
             </h1>
-            <p style={{ 
-              margin: 0, 
+            <p style={{
+              margin: 0,
               color: '#ffffff',
               fontSize: '1.1em',
               fontWeight: 600,
@@ -1391,7 +1280,7 @@ export const ModernDashboard: React.FC = () => {
               transform: 'translateZ(10px)',
               opacity: 0.98
             }}>
-              Análisis Avanzado de Contratación Pública • {dashboardData.kpi_metrics.total_carteles.toLocaleString()} licitaciones • {sectoresReales.length} sectores
+              Análisis Avanzado de Contratación Pública • {(resumen?.procedimientos ?? 0).toLocaleString('es-CR')} procedimientos • {sectoresReales.length} categorías
             </p>
           </div>
           <div style={{
@@ -1400,58 +1289,7 @@ export const ModernDashboard: React.FC = () => {
             alignItems: 'center',
             transform: 'translateZ(15px)'
           }}>
-            <button
-              onClick={() => alert('Download functionality moved to separate component')}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px) scale(1.05) rotateY(5deg)';
-                e.currentTarget.style.boxShadow = '0 12px 32px rgba(108, 92, 231, 0.4), 0 0 0 3px rgba(255,255,255,0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0) scale(1) rotateY(0deg)';
-                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2), 0 0 40px rgba(108, 92, 231, 0.3)';
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 50%, #00cec9 100%)',
-                color: 'white',
-                border: 'none',
-                padding: '10px 18px',
-                borderRadius: '14px',
-                fontWeight: 700,
-                fontSize: '13px',
-                cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.2), 0 0 40px rgba(108, 92, 231, 0.3)',
-                transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                position: 'relative',
-                overflow: 'hidden',
-                letterSpacing: '0.02em',
-                willChange: 'transform'
-              }}
-              title="Download moved to separate component"
-            >
-              <span style={{ position: 'relative', zIndex: 1 }}>📊 Info</span>
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                width: '500px',
-                height: '500px',
-                background: 'radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%)',
-                transform: 'translate(-50%, -50%) scale(0)',
-                transition: 'transform 0.6s ease-out',
-                borderRadius: '50%',
-                pointerEvents: 'none'
-              }} />
-            </button>
-            <div 
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.08) rotateZ(2deg)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1) rotateZ(0deg)';
-              }}
+            <div
               style={{
                 background: 'linear-gradient(135deg, #28a745 0%, #20c997 50%, #00b894 100%)',
                 color: 'white',
@@ -1470,28 +1308,40 @@ export const ModernDashboard: React.FC = () => {
               }}
             >
               <Clock size={18} style={{ animation: 'glow-pulse 2s ease-in-out infinite' }} />
-              Datos Reales
+              Datos SICOP en vivo
             </div>
           </div>
         </div>
       </div>
 
-      {/* Filtros Avanzados */}
+      {/* Filtro de periodo */}
       <AdvancedFilters
-        institutions={availableInstitutions}
-        categories={availableCategories}
-        selectedInstitutions={selectedInstitutions}
-        selectedCategories={selectedCategories}
-        searchKeywords={searchKeywords}
-        onInstitutionsChange={setSelectedInstitutions}
-        onCategoriesChange={setSelectedCategories}
-        onSearchKeywordsChange={setSearchKeywords}
+        periodos={filtrosQuery.data?.periodos || []}
+        desde={desdeSel}
+        hasta={hastaSel}
+        onDesdeChange={setDesdeSel}
+        onHastaChange={setHastaSel}
         onApplyFilters={handleApplyFilters}
         onClearFilters={handleClearFilters}
         isLoading={isLoadingFilters}
+        rangoAplicado={resumen ? { desde: resumen.periodo_desde, hasta: resumen.periodo_hasta } : undefined}
       />
 
-      {/* Grid de KPIs Avanzados - Optimizado Full HD */}
+      {sinDatos ? (
+        <div style={{
+          background: 'rgba(255,255,255,0.95)',
+          borderRadius: '24px',
+          padding: '48px',
+          textAlign: 'center',
+          color: '#6c757d'
+        }}>
+          <Activity size={40} style={{ marginBottom: 12, opacity: 0.6 }} />
+          <h3 style={{ margin: '0 0 8px 0', color: '#2c3e50' }}>No hay datos para el rango seleccionado</h3>
+          <p style={{ margin: 0 }}>Ajuste el rango de periodo o límpielo para ver todo el historial disponible.</p>
+        </div>
+      ) : (
+      <>
+      {/* Grid de KPIs - Datos reales del backend */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
@@ -1501,84 +1351,84 @@ export const ModernDashboard: React.FC = () => {
         transformStyle: 'preserve-3d'
       }}>
         <KPICard
-          title="Total Carteles"
-          value={dashboardData.kpi_metrics.total_carteles}
-          subtitle="Procedimientos de licitación"
+          title="Procedimientos"
+          value={resumen!.procedimientos}
+          subtitle="Procedimientos en el periodo"
           trend="stable"
           trendValue="Datos oficiales SICOP"
           icon={<FileText size={24} />}
           color="#3498db"
           badge="REAL"
         />
-        
+
         <KPICard
-          title="Contratos Generados"
-          value={dashboardData.kpi_metrics.total_contratos}
-          subtitle={`Tasa conversión: ${metricsReales.tasaConversion}%`}
-          trend={parseFloat(metricsReales.tasaConversion) > 100 ? "up" : "stable"}
-          trendValue={parseFloat(metricsReales.tasaConversion) > 100 ? "Múltiples contratos/cartel" : "1:1 ratio"}
+          title="Órdenes Generadas"
+          value={resumen!.ordenes}
+          subtitle={`Tasa de adjudicación: ${metricsReales.tasaAdjudicacion}%`}
+          trend={parseFloat(metricsReales.tasaAdjudicacion) >= 50 ? 'up' : 'down'}
+          trendValue={parseFloat(metricsReales.tasaAdjudicacion) >= 50 ? 'Cierre saludable' : 'Cierre bajo'}
           icon={<Briefcase size={24} />}
           color="#27ae60"
           badge="REAL"
         />
-        
+
         <KPICard
-          title="Proveedores Activos"
-          value={dashboardData.kpi_metrics.total_proveedores}
-          subtitle={`Eficiencia: ${metricsReales.eficienciaProveedores}%`}
+          title="Proveedores Adjudicados"
+          value={resumen!.proveedores}
+          subtitle={`Ofertas por proveedor: ${metricsReales.eficienciaProveedores}%`}
           trend="up"
-          trendValue="Base amplia de proveedores"
+          trendValue="Base de proveedores"
           icon={<Users size={24} />}
           color="#f39c12"
           badge="REAL"
         />
-        
+
         <KPICard
           title="Ofertas Recibidas"
-          value={dashboardData.kpi_metrics.total_ofertas}
-          subtitle={`Promedio: ${metricsReales.competenciaPromedio} ofertas/cartel`}
-          trend={parseFloat(metricsReales.competenciaPromedio) > 5 ? "up" : "down"}
-          trendValue={parseFloat(metricsReales.competenciaPromedio) > 5 ? "Competencia alta" : "Competencia limitada"}
+          value={resumen!.ofertas}
+          subtitle={`Promedio: ${metricsReales.competenciaPromedio} ofertas/procedimiento`}
+          trend={parseFloat(metricsReales.competenciaPromedio) >= 5 ? 'up' : 'down'}
+          trendValue={parseFloat(metricsReales.competenciaPromedio) >= 5 ? 'Competencia alta' : 'Competencia limitada'}
           icon={<Target size={24} />}
           color="#9b59b6"
           badge="REAL"
         />
-        
+
         <KPICard
-          title="Monto Total"
-          value={formatCRCCompact(dashboardData.monto_total_contratos || 0)}
-          subtitle="Miles de millones de colones"
-          trend="up"
-          trendValue="Volumen alto de contratación"
+          title="Monto Adjudicado"
+          value={formatCRCCompact(resumen!.monto_crc)}
+          subtitle="Colones (₡)"
+          trend={resumen!.variacion_monto_pct == null ? 'stable' : resumen!.variacion_monto_pct >= 0 ? 'up' : 'down'}
+          trendValue={resumen!.variacion_monto_pct == null ? 'Sin comparación disponible' : `${resumen!.variacion_monto_pct >= 0 ? '+' : ''}${resumen!.variacion_monto_pct.toFixed(1)}% vs. periodo anterior`}
           icon={<DollarSign size={24} />}
           color="#e74c3c"
           badge="REAL"
         />
-        
+
         <KPICard
-          title="Total Líneas"
-          value={dashboardData.kpi_metrics.total_lineas}
-          subtitle={`Promedio: ${dashboardData.kpi_metrics.promedio_lineas_por_cartel} líneas/cartel`}
-          trend={dashboardData.kpi_metrics.promedio_lineas_por_cartel > 5 ? "up" : "stable"}
-          trendValue={dashboardData.kpi_metrics.promedio_lineas_por_cartel > 5 ? "Carteles complejos" : "Carteles simples"}
+          title="Líneas Adjudicadas"
+          value={resumen!.lineas_adjudicadas}
+          subtitle={`Promedio: ${formatCRCCompact(resumen!.monto_promedio_crc)}/procedimiento`}
+          trend="stable"
+          trendValue="Detalle de adjudicación"
           icon={<FileText size={24} />}
           color="#16a085"
           badge="REAL"
         />
-        
+
         <KPICard
-          title="Sectores Activos"
-          value={sectoresReales.length}
-          subtitle={`Dominante: ${metricsReales.sectorMayor}`}
+          title="Instituciones Activas"
+          value={resumen!.instituciones}
+          subtitle={`${sectoresReales.length} categorías de gasto`}
           trend="stable"
-          trendValue={`${metricsReales.proporcionServicios.toFixed(1)}% servicios`}
+          trendValue="Cobertura institucional"
           icon={<Building size={24} />}
           color="#17a2b8"
-          badge="CALC"
+          badge="REAL"
         />
       </div>
 
-      {/* Grid principal de análisis - Premium Glassmorphism */}
+      {/* Grid principal de análisis */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '2fr 1fr',
@@ -1587,8 +1437,7 @@ export const ModernDashboard: React.FC = () => {
         perspective: '2000px',
         transformStyle: 'preserve-3d'
       }}>
-        {/* Distribución sectorial con datos reales */}
-        <div 
+        <div
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'translateY(-8px) translateZ(15px) rotateX(2deg)';
             e.currentTarget.style.boxShadow = `
@@ -1624,7 +1473,6 @@ export const ModernDashboard: React.FC = () => {
           transformStyle: 'preserve-3d',
           willChange: 'transform, box-shadow'
         }}>
-          {/* Brillo animado */}
           <div style={{
             position: 'absolute',
             top: '-50%',
@@ -1636,10 +1484,10 @@ export const ModernDashboard: React.FC = () => {
             animation: 'shimmer 8s linear infinite',
             pointerEvents: 'none'
           }} />
-          
-          <h3 style={{ 
-            margin: '0 0 20px 0', 
-            fontSize: '18px', 
+
+          <h3 style={{
+            margin: '0 0 20px 0',
+            fontSize: '18px',
             fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
@@ -1655,7 +1503,7 @@ export const ModernDashboard: React.FC = () => {
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text'
             }}>
-              Distribución por Sectores
+              Distribución por Categoría de Gasto
             </span>
             <span style={{
               background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
@@ -1700,8 +1548,8 @@ export const ModernDashboard: React.FC = () => {
               <Settings size={18} />
             </button>
           </h3>
-          
-          <div style={{ 
+
+          <div style={{
             display: 'grid',
             gridTemplateColumns: '300px 300px 1fr',
             gap: '24px',
@@ -1719,15 +1567,12 @@ export const ModernDashboard: React.FC = () => {
                   dataKey="value"
                 >
                   {sectoresReales.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} onClick={() => {
-                      // Seleccionar este sector específico
-                      setSelectedCategories([entry.name]);
-                    }} />
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip 
+                <Tooltip
                   formatter={(value: any, name: any, props: any) => [
-                    `${value}% (${props.payload.count.toLocaleString()} licitaciones)`,
+                    `${Number(value).toFixed(1)}% (${props.payload.count.toLocaleString('es-CR')} líneas)`,
                     props.payload.name
                   ] as any}
                 />
@@ -1736,30 +1581,20 @@ export const ModernDashboard: React.FC = () => {
 
             <div>
               <div style={{ fontSize: 13, color: '#6c757d', marginBottom: 8 }}>
-                {filtersApplied.sector && filtersApplied.sector.length
-                  ? (
-                    <>
-                      Subcategorías de: <strong>{(filtersApplied.sector as string[]).join(', ')}</strong>
-                    </>
-                  )
-                  : (
-                    <>
-                      Subcategorías de: <strong>Todos los sectores</strong>
-                    </>
-                  )}
+                Distribución por <strong>Tipo de Procedimiento</strong>
               </div>
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={subcategoriasData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={2} dataKey="value">
-                    {subcategoriasData.map((entry: { name: string; value: number; color: string }, index: number) => (
-                      <Cell key={`subcell-${index}`} fill={entry.color} />
+                  <Pie data={tiposDistribucion} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={2} dataKey="value">
+                    {tiposDistribucion.map((entry, index) => (
+                      <Cell key={`tipocell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: any, name: any) => [`${value.toLocaleString()} carteles`, name || ''] as any} />
+                  <Tooltip formatter={(value: any, name: any, props: any) => [`${Number(value).toFixed(1)}%`, props.payload.name] as any} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            
+
             <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
               {sectoresReales.map((sector, index) => (
                 <SectorCard key={sector.name} sector={sector} index={index} />
@@ -1768,11 +1603,10 @@ export const ModernDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Panel de alertas inteligentes */}
         <AlertPanel alerts={alertasInteligentes} />
       </div>
 
-      {/* Tendencias temporales - Optimizado Full HD */}
+      {/* Tendencias temporales */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
@@ -1781,14 +1615,13 @@ export const ModernDashboard: React.FC = () => {
         perspective: '2000px',
         transformStyle: 'preserve-3d'
       }}>
-        <MetricaTemporalChart 
-          data={tendenciasDiarias}
-          title="Tendencias Mensual"
+        <MetricaTemporalChart
+          data={tendenciasMensuales}
+          title="Tendencia Mensual"
           height={280}
         />
-        
-        {/* Métricas de eficiencia - Premium Design */}
-        <div 
+
+        <div
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
             e.currentTarget.style.boxShadow = `
@@ -1824,7 +1657,6 @@ export const ModernDashboard: React.FC = () => {
           transformStyle: 'preserve-3d',
           willChange: 'transform, box-shadow'
         }}>
-          {/* Efecto shimmer */}
           <div style={{
             position: 'absolute',
             top: '-50%',
@@ -1836,10 +1668,10 @@ export const ModernDashboard: React.FC = () => {
             animation: 'shimmer 6s linear infinite',
             pointerEvents: 'none'
           }} />
-          
-          <h3 style={{ 
-            margin: '0 0 24px 0', 
-            fontSize: '22px', 
+
+          <h3 style={{
+            margin: '0 0 24px 0',
+            fontSize: '22px',
             fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
@@ -1858,84 +1690,51 @@ export const ModernDashboard: React.FC = () => {
               Métricas de Eficiencia
             </span>
           </h3>
-          
+
           <div style={{ display: 'grid', gap: '18px', position: 'relative', zIndex: 1 }}>
-            <div 
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateX(8px) scale(1.03)';
-                e.currentTarget.style.boxShadow = '0 12px 32px rgba(52, 152, 219, 0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateX(0) scale(1)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(52, 152, 219, 0.15)';
-              }}
-              style={{
+            <div style={{
               padding: '20px 24px',
               background: 'linear-gradient(135deg, rgba(52, 152, 219, 0.15) 0%, rgba(52, 152, 219, 0.08) 100%)',
               backdropFilter: 'blur(10px)',
               borderRadius: '18px',
               border: '2px solid rgba(52, 152, 219, 0.3)',
-              boxShadow: '0 6px 20px rgba(52, 152, 219, 0.15)',
-              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-              willChange: 'transform, box-shadow'
+              boxShadow: '0 6px 20px rgba(52, 152, 219, 0.15)'
             }}>
-              <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.02em' }}>Tasa de Conversión</div>
+              <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.02em' }}>Tasa de Adjudicación</div>
               <div style={{ fontSize: '32px', fontWeight: 800, color: '#3498db', lineHeight: 1, marginBottom: '6px', letterSpacing: '-0.02em' }}>
-                {metricsReales.tasaConversion}%
+                {metricsReales.tasaAdjudicacion}%
               </div>
               <div style={{ fontSize: '11px', color: '#6c757d', fontWeight: 500 }}>
-                Carteles → Contratos
+                Procedimientos → Órdenes
               </div>
             </div>
-            
-            <div 
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateX(8px) scale(1.03)';
-                e.currentTarget.style.boxShadow = '0 12px 32px rgba(39, 174, 96, 0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateX(0) scale(1)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(39, 174, 96, 0.15)';
-              }}
-              style={{
+
+            <div style={{
               padding: '20px 24px',
               background: 'linear-gradient(135deg, rgba(39, 174, 96, 0.15) 0%, rgba(39, 174, 96, 0.08) 100%)',
               backdropFilter: 'blur(10px)',
               borderRadius: '18px',
               border: '2px solid rgba(39, 174, 96, 0.3)',
-              boxShadow: '0 6px 20px rgba(39, 174, 96, 0.15)',
-              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-              willChange: 'transform, box-shadow'
+              boxShadow: '0 6px 20px rgba(39, 174, 96, 0.15)'
             }}>
               <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.02em' }}>Competencia Promedio</div>
               <div style={{ fontSize: '32px', fontWeight: 800, color: '#27ae60', lineHeight: 1, marginBottom: '6px', letterSpacing: '-0.02em' }}>
                 {metricsReales.competenciaPromedio}
               </div>
               <div style={{ fontSize: '11px', color: '#6c757d', fontWeight: 500 }}>
-                Ofertas por cartel
+                Ofertas por procedimiento
               </div>
             </div>
-            
-            <div 
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateX(8px) scale(1.03)';
-                e.currentTarget.style.boxShadow = '0 12px 32px rgba(243, 156, 18, 0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateX(0) scale(1)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(243, 156, 18, 0.15)';
-              }}
-              style={{
+
+            <div style={{
               padding: '20px 24px',
               background: 'linear-gradient(135deg, rgba(243, 156, 18, 0.15) 0%, rgba(243, 156, 18, 0.08) 100%)',
               backdropFilter: 'blur(10px)',
               borderRadius: '18px',
               border: '2px solid rgba(243, 156, 18, 0.3)',
-              boxShadow: '0 6px 20px rgba(243, 156, 18, 0.15)',
-              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-              willChange: 'transform, box-shadow'
+              boxShadow: '0 6px 20px rgba(243, 156, 18, 0.15)'
             }}>
-              <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.02em' }}>Participación Proveedores</div>
+              <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.02em' }}>Ofertas por Proveedor</div>
               <div style={{ fontSize: '32px', fontWeight: 800, color: '#f39c12', lineHeight: 1, marginBottom: '6px', letterSpacing: '-0.02em' }}>
                 {metricsReales.eficienciaProveedores}%
               </div>
@@ -1947,7 +1746,7 @@ export const ModernDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Complementos: Top entidades y proveedores - Premium Design */}
+      {/* Top entidades y proveedores */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
@@ -1956,7 +1755,7 @@ export const ModernDashboard: React.FC = () => {
         perspective: '2000px',
         transformStyle: 'preserve-3d'
       }}>
-        <div 
+        <div
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
             e.currentTarget.style.boxShadow = `
@@ -1992,7 +1791,6 @@ export const ModernDashboard: React.FC = () => {
           transformStyle: 'preserve-3d',
           willChange: 'transform, box-shadow'
         }}>
-          {/* Efecto shimmer */}
           <div style={{
             position: 'absolute',
             top: '-50%',
@@ -2004,10 +1802,10 @@ export const ModernDashboard: React.FC = () => {
             animation: 'shimmer 7s linear infinite',
             pointerEvents: 'none'
           }} />
-          
-          <h3 style={{ 
-            margin: '0 0 24px 0', 
-            fontSize: '22px', 
+
+          <h3 style={{
+            margin: '0 0 24px 0',
+            fontSize: '22px',
             fontWeight: 700,
             position: 'relative',
             zIndex: 1,
@@ -2023,49 +1821,55 @@ export const ModernDashboard: React.FC = () => {
               Top 10 Instituciones por Monto
             </span>
           </h3>
-          
-          <div style={{ maxHeight: 400, overflowY: 'auto', display: 'grid', gap: 12, position: 'relative', zIndex: 1 }}>
-            {topInstituciones.map((it: any, idx: number) => (
-              <div 
-                key={it.codigo}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateX(10px) scale(1.02)';
-                  e.currentTarget.style.boxShadow = '0 8px 28px rgba(23, 162, 184, 0.25)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateX(0) scale(1)';
-                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)';
-                }}
-                style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr auto auto', 
-                gap: 14, 
-                alignItems: 'center', 
-                padding: '14px 18px', 
-                borderRadius: 14,
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.7) 100%)',
-                backdropFilter: 'blur(10px)',
-                border: '2px solid rgba(233, 236, 239, 0.6)',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-                transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                willChange: 'transform, box-shadow'
-              }}>
-                <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '15px', letterSpacing: '-0.01em' }}>
-                  {idx + 1}. {it.nombre}
-                  {it.nombre !== it.codigo && (
-                    <span style={{ marginLeft: 10, color: '#999', fontWeight: 500, fontSize: '13px' }}>({it.codigo})</span>
-                  )}
+
+          {topInstituciones.length === 0 ? (
+            <div style={{ padding: '20px', border: '2px dashed #e9ecef', borderRadius: 12, textAlign: 'center', color: '#6c757d', fontSize: 14 }}>
+              Sin datos de instituciones para el rango seleccionado
+            </div>
+          ) : (
+            <div style={{ maxHeight: 400, overflowY: 'auto', display: 'grid', gap: 12, position: 'relative', zIndex: 1 }}>
+              {topInstituciones.map((it, idx) => (
+                <div
+                  key={it.cedula}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateX(10px) scale(1.02)';
+                    e.currentTarget.style.boxShadow = '0 8px 28px rgba(23, 162, 184, 0.25)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateX(0) scale(1)';
+                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)';
+                  }}
+                  style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto auto',
+                  gap: 14,
+                  alignItems: 'center',
+                  padding: '14px 18px',
+                  borderRadius: 14,
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.7) 100%)',
+                  backdropFilter: 'blur(10px)',
+                  border: '2px solid rgba(233, 236, 239, 0.6)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+                  transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  willChange: 'transform, box-shadow'
+                }}>
+                  <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: '15px', letterSpacing: '-0.01em' }}>
+                    {idx + 1}. {it.nombre}
+                    {it.nombre !== it.cedula && (
+                      <span style={{ marginLeft: 10, color: '#999', fontWeight: 500, fontSize: '13px' }}>({it.cedula})</span>
+                    )}
+                  </div>
+                  <div style={{ color: '#6c757d', fontWeight: 600, fontSize: '13px' }}>{it.procedimientos.toLocaleString('es-CR')} procedimientos</div>
+                  {(() => { const v = withTooltip(formatCRCCompact(it.monto_crc || 0), it.monto_crc); return (
+                    <div title={v.title} style={{ fontWeight: 800, color: '#e74c3c', fontSize: '15px' }}>{v.text}</div>
+                  );})()}
                 </div>
-                <div style={{ color: '#6c757d', fontWeight: 600, fontSize: '13px' }}>{it.carteles.toLocaleString()} carteles</div>
-                {(() => { const v = withTooltip(formatCRCCompact(it.monto||0), it.monto); return (
-                  <div title={v.title} style={{ fontWeight: 800, color: '#e74c3c', fontSize: '15px' }}>{v.text}</div>
-                );})()}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div 
+        <div
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'translateY(-6px) translateZ(12px) rotateX(1deg)';
             e.currentTarget.style.boxShadow = `
@@ -2101,7 +1905,6 @@ export const ModernDashboard: React.FC = () => {
           transformStyle: 'preserve-3d',
           willChange: 'transform, box-shadow'
         }}>
-          {/* Efecto shimmer */}
           <div style={{
             position: 'absolute',
             top: '-50%',
@@ -2113,13 +1916,13 @@ export const ModernDashboard: React.FC = () => {
             animation: 'shimmer 7s linear infinite',
             pointerEvents: 'none'
           }} />
-          
-          <h3 style={{ 
-            margin: '0 0 24px 0', 
-            fontSize: '22px', 
-            fontWeight: 700, 
-            display: 'flex', 
-            alignItems: 'center', 
+
+          <h3 style={{
+            margin: '0 0 24px 0',
+            fontSize: '22px',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
             gap: '10px',
             position: 'relative',
             zIndex: 1,
@@ -2134,49 +1937,30 @@ export const ModernDashboard: React.FC = () => {
             }}>
               Top 10 Proveedores por Monto
             </span>
-            <span style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              padding: '6px 12px',
-              borderRadius: '10px',
-              fontSize: '12px',
-              fontWeight: 700,
-              boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
-              letterSpacing: '0.03em',
-              animation: 'pulse 2.5s ease-in-out infinite'
-            }}>
-              NUEVO
-            </span>
           </h3>
           <div style={{ maxHeight: 360, overflowY: 'auto', display: 'grid', gap: 8 }}>
-            {(() => {
-              const proveedores = topProveedores || [];
-              
-              if (proveedores.length === 0) {
-                return (
-                  <div style={{
-                    padding: '20px',
-                    border: '2px dashed #e9ecef',
-                    borderRadius: 12,
-                    textAlign: 'center',
-                    color: '#6c757d',
-                    fontSize: 14
-                  }}>
-                    <div style={{ fontSize: 16, marginBottom: 8 }}>📊</div>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Sin datos de proveedores</div>
-                    <div style={{ fontSize: 12 }}>Verifique que los datos CSV estén cargados correctamente</div>
-                  </div>
-                );
-              }
-              
-              return proveedores.map((proveedor: any, index: number) => {
+            {topProveedores.length === 0 ? (
+              <div style={{
+                padding: '20px',
+                border: '2px dashed #e9ecef',
+                borderRadius: 12,
+                textAlign: 'center',
+                color: '#6c757d',
+                fontSize: 14
+              }}>
+                <div style={{ fontSize: 16, marginBottom: 8 }}>📊</div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Sin datos de proveedores</div>
+                <div style={{ fontSize: 12 }}>No hay adjudicaciones para el rango seleccionado</div>
+              </div>
+            ) : (
+              topProveedores.map((proveedor, index) => {
                 const posicion = index + 1;
                 const esTopTres = posicion <= 3;
-                const montoFormateado = withTooltip(formatCRCCompact(proveedor.monto || 0), proveedor.monto);
-                
+                const montoFormateado = withTooltip(formatCRCCompact(proveedor.monto_crc || 0), proveedor.monto_crc);
+
                 return (
-                  <div 
-                    key={proveedor.id || proveedor.cedula} 
+                  <div
+                    key={proveedor.cedula}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: 'auto 1fr auto auto',
@@ -2185,7 +1969,7 @@ export const ModernDashboard: React.FC = () => {
                       padding: '12px 16px',
                       borderRadius: 12,
                       border: esTopTres ? '2px solid #667eea' : '1px solid #e9ecef',
-                      background: esTopTres 
+                      background: esTopTres
                         ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%)'
                         : 'white',
                       transition: 'all 0.2s ease',
@@ -2200,12 +1984,11 @@ export const ModernDashboard: React.FC = () => {
                       e.currentTarget.style.boxShadow = 'none';
                     }}
                   >
-                    {/* Posición */}
                     <div style={{
                       width: 32,
                       height: 32,
                       borderRadius: '50%',
-                      background: esTopTres 
+                      background: esTopTres
                         ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
                         : '#f8f9fa',
                       color: esTopTres ? 'white' : '#6c757d',
@@ -2217,11 +2000,10 @@ export const ModernDashboard: React.FC = () => {
                     }}>
                       {posicion}
                     </div>
-                    
-                    {/* Información del proveedor */}
+
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ 
-                        fontWeight: 600, 
+                      <div style={{
+                        fontWeight: 600,
                         color: '#2c3e50',
                         fontSize: 14,
                         marginBottom: 2,
@@ -2231,21 +2013,18 @@ export const ModernDashboard: React.FC = () => {
                       }}>
                         {proveedor.nombre}
                       </div>
-                      <div style={{ 
-                        fontSize: 11, 
+                      <div style={{
+                        fontSize: 11,
                         color: '#6c757d',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 8
                       }}>
                         <span>ID: {proveedor.cedula}</span>
-                        {proveedor.lineas && (
-                          <span>• {proveedor.lineas} líneas</span>
-                        )}
+                        <span>• {proveedor.adjudicaciones.toLocaleString('es-CR')} adjudicaciones</span>
                       </div>
                     </div>
-                    
-                    {/* Badges de posición especial */}
+
                     {esTopTres && (
                       <div style={{
                         background: posicion === 1 ? '#ffd700' : posicion === 2 ? '#c0c0c0' : '#cd7f32',
@@ -2259,12 +2038,11 @@ export const ModernDashboard: React.FC = () => {
                         {posicion === 1 ? '🥇 LÍDER' : posicion === 2 ? '🥈 2DO' : '🥉 3RO'}
                       </div>
                     )}
-                    
-                    {/* Monto */}
-                    <div 
-                      title={montoFormateado.title} 
-                      style={{ 
-                        fontWeight: 700, 
+
+                    <div
+                      title={montoFormateado.title}
+                      style={{
+                        fontWeight: 700,
                         color: esTopTres ? '#667eea' : '#27ae60',
                         fontSize: esTopTres ? 15 : 14,
                         textAlign: 'right',
@@ -2275,12 +2053,11 @@ export const ModernDashboard: React.FC = () => {
                     </div>
                   </div>
                 );
-              });
-            })()}
+              })
+            )}
           </div>
-          
-          {/* Estadísticas del panel */}
-          {topProveedores && topProveedores.length > 0 && (
+
+          {topProveedores.length > 0 && (
             <div style={{
               marginTop: 16,
               padding: '12px 16px',
@@ -2288,8 +2065,8 @@ export const ModernDashboard: React.FC = () => {
               borderRadius: 8,
               border: '1px solid #dee2e6'
             }}>
-              <div style={{ 
-                fontSize: 11, 
+              <div style={{
+                fontSize: 11,
                 color: '#6c757d',
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
@@ -2299,134 +2076,25 @@ export const ModernDashboard: React.FC = () => {
                 <div>
                   <div style={{ fontWeight: 600, color: '#495057' }}>
                     {withTooltip(
-                      formatCRCCompact(topProveedores.reduce((sum: number, p: any) => sum + (p.monto || 0), 0)),
-                      topProveedores.reduce((sum: number, p: any) => sum + (p.monto || 0), 0)
+                      formatCRCCompact(topProveedores.reduce((sum, p) => sum + (p.monto_crc || 0), 0)),
+                      topProveedores.reduce((sum, p) => sum + (p.monto_crc || 0), 0)
                     ).text}
                   </div>
                   <div>Total Top 10</div>
                 </div>
                 <div>
                   <div style={{ fontWeight: 600, color: '#495057' }}>
-                    {topProveedores.reduce((sum: number, p: any) => sum + (p.lineas || 0), 0).toLocaleString()}
+                    {topProveedores.reduce((sum, p) => sum + (p.adjudicaciones || 0), 0).toLocaleString('es-CR')}
                   </div>
-                  <div>Líneas Totales</div>
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, color: '#495057' }}>
-                    {(topProveedores.reduce((sum: number, p: any) => sum + (p.lineas || 0), 0) / topProveedores.length).toFixed(1)}
-                  </div>
-                  <div>Líneas/Proveedor</div>
+                  <div>Adjudicaciones Totales</div>
                 </div>
               </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* Complementos: Histogramas y tiempos */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '24px',
-        marginTop: '24px'
-      }}>
-        <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: '1px solid #e9ecef' }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>📦 Ofertas por cartel (histograma)</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={offersHistogram}>
-              <XAxis dataKey="ofertas" />
-              <YAxis />
-              <Tooltip formatter={(v: any) => [`${v.toLocaleString()} carteles`, 'Cantidad']} />
-              <Bar dataKey="carteles" fill="#667eea" />
-            </BarChart>
-          </ResponsiveContainer>
-          <div style={{ marginTop: 8, fontSize: 12, color: '#6c757d' }}>Distribución de número de oferentes por cartel</div>
-        </div>
-
-        <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: '1px solid #e9ecef' }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-            ⏱️ Velocidad de Adjudicación
-            {ttaStats.n > 0 && (
-              <span style={{ background: '#27ae60', color: 'white', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                n={ttaStats.n}
-              </span>
-            )}
-          </h3>
-          {(() => {
-            const total = ttaStats.n || 0;
-            const distMap: Record<string, number> = {};
-            (ttaDistribution || []).forEach((d: any) => { distMap[d.rango] = d.carteles; });
-            const buckets = ['0-15','16-30','31-60','61-90','>90'];
-            const enriched = buckets.map(b => ({
-              rango: b,
-              valor: distMap[b] || 0,
-              pct: total ? (100 * (distMap[b] || 0) / total) : 0
-            }));
-            const activos = enriched.filter(e => e.valor > 0).length;
-            const pct015 = enriched[0].pct;
-            const pct3030 = enriched[1].pct;
-            const velocidad = pct015 >= 70 ? 'Muy rápida' : pct015 >= 50 ? 'Rápida' : pct015 >= 30 ? 'Media' : 'Lenta';
-            const interpretacion = (() => {
-              if (!total) return 'Sin datos de adjudicación firme disponibles.';
-              if (activos <= 2 && pct015 > 80) return 'La gran mayoría de los procesos se adjudican en las primeras dos semanas.';
-              if (pct015 > 60 && pct3030 > 20) return 'Predominio de adjudicaciones tempranas con una segunda cola moderada.';
-              if (activos >= 4) return 'Distribución más dispersa: revisar cuellos de botella en rangos altos.';
-              return 'Distribución concentrada en tramos cortos.';
-            })();
-            return (
-              <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div style={{ display: 'flex', height: 40, borderRadius: 12, overflow: 'hidden', border: '1px solid #e9ecef', background: '#f8f9fa' }}>
-                    {enriched.map((b, i) => (
-                      <div key={b.rango} style={{
-                        flex: b.pct || 0,
-                        background: b.valor === 0 ? 'transparent' : ['#27ae60','#52be80','#f1c40f','#e67e22','#c0392b'][i],
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 11,
-                        color: b.valor === 0 ? '#adb5bd' : 'white',
-                        fontWeight: 600,
-                        transition: 'flex 0.4s ease'
-                      }} title={`${b.rango} días: ${b.valor.toLocaleString()} (${b.pct.toFixed(1)}%)`}>
-                        {b.pct >= 6 ? `${b.rango} (${b.pct.toFixed(0)}%)` : (b.valor > 0 ? b.rango : '')}
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 12 }}>
-                    <div style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: 10, border: '1px solid #e9ecef' }}>
-                      <div style={{ fontSize: 11, color: '#6c757d' }}>Mediana</div>
-                      <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: 16 }}>{ttaStats.mediana || 0} d</div>
-                    </div>
-                    <div style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: 10, border: '1px solid #e9ecef' }}>
-                      <div style={{ fontSize: 11, color: '#6c757d' }}>P90</div>
-                      <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: 16 }}>{ttaStats.p90 || 0} d</div>
-                    </div>
-                    <div style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: 10, border: '1px solid #e9ecef' }}>
-                      <div style={{ fontSize: 11, color: '#6c757d' }}>≤15 días</div>
-                      <div style={{ fontWeight: 700, color: '#27ae60', fontSize: 16 }}>{pct015.toFixed(1)}%</div>
-                    </div>
-                    <div style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: 10, border: '1px solid #e9ecef' }}>
-                      <div style={{ fontSize: 11, color: '#6c757d' }}>Tramos activos</div>
-                      <div style={{ fontWeight: 700, color: '#2c3e50', fontSize: 16 }}>{activos}</div>
-                    </div>
-                    <div style={{ padding: '10px 12px', background: 'linear-gradient(135deg,#27ae6015,#27ae6030)', borderRadius: 10, border: '1px solid #27ae60' }}>
-                      <div style={{ fontSize: 11, color: '#2c3e50' }}>Velocidad</div>
-                      <div style={{ fontWeight: 700, color: '#27ae60', fontSize: 16 }}>{velocidad}</div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: '#495057', background: '#f8f9fa', padding: '12px 14px', borderRadius: 10, border: '1px solid #e9ecef' }}>
-                    {interpretacion}
-                    {total > 0 && ` • P90=${ttaStats.p90} días • Concentración ${(pct015 + pct3030).toFixed(1)}% en ≤30 días.`}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#adb5bd' }}>Distribución construida sobre adjudicaciones firmes válidas (excluye casos sin fecha válida o tiempo ≤0).</div>
-                </div>
-              </>
-            );
-          })()}
-          <div style={{ marginTop: 16, fontSize: 11, color: '#6c757d' }}>HHI mercado={(hhiMarket.hhi||0).toFixed(3)} • Top5={(hhiMarket.top5Share*100).toFixed(1)}%</div>
-        </div>
-      </div>
+      </>
+      )}
     </div>
     </>
   );

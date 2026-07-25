@@ -17,6 +17,7 @@
 
 import React, { useState } from 'react';
 import { useSicop } from '../context/SicopContext';
+import { MenuUsuario } from '../auth/MenuUsuario';
 import ModernDashboard from './ModernDashboard';
 import InstitucionesDashboard from './InstitucionesDashboard';
 import SicopExplorer from './SicopExplorer';
@@ -24,15 +25,8 @@ import CategoryManager from './CategoryManager/CategoryManager';
 import ReportsPanel from './ReportsPanel';
 import './DemoPanel.css';
 
-interface DemoPanelProps {
-  onGoBackToWelcome?: () => void;
-}
-
-export const DemoPanel: React.FC<DemoPanelProps> = ({ onGoBackToWelcome }) => {
-  const { 
-    estadisticasGenerales, 
-    error
-  } = useSicop();
+export const DemoPanel: React.FC = () => {
+  const { error } = useSicop();
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'instituciones' | 'analysis' | 'reports' | 'categorias'>('dashboard');
 
@@ -52,9 +46,9 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ onGoBackToWelcome }) => {
         
         <div className="header-content">
           <div className="header-logo-section">
-            <img 
+            <img
               src={`${process.env.PUBLIC_URL}/logo-hq-analytics.png`}
-              alt="HQ Analytics Logo" 
+              alt="HQ Analytics Logo"
               className="header-logo"
             />
             <div className="header-company-info">
@@ -62,32 +56,19 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ onGoBackToWelcome }) => {
               <div className="company-tagline">HQ Analytics™ - High Technology Quality Analytics</div>
             </div>
           </div>
-          
+
           <h1 className="header-title">
             <span className="header-icon">🏛️</span>
             <span className="header-title-text">SICOP Analytics - Sistema de Análisis</span>
           </h1>
           <p className="header-subtitle">
             <span>Análisis Inteligente de Licitaciones Públicas de Costa Rica</span>
-            <span className="stat-badge">
-              📋 <span className="stat-number">{estadisticasGenerales.carteles?.toLocaleString()}</span> Carteles
-            </span>
-            <span className="stat-badge">
-              📄 <span className="stat-number">{estadisticasGenerales.contratos?.toLocaleString()}</span> Contratos
-            </span>
           </p>
-          
-          {/* Botón de regreso al menú principal */}
-          {onGoBackToWelcome && (
-            <button 
-              className="back-to-welcome-button"
-              onClick={onGoBackToWelcome}
-              title="Volver al Menú Principal"
-            >
-              <span className="back-icon">🏠</span>
-              <span className="back-text">Menú Principal</span>
-            </button>
-          )}
+
+          {/* Menú de usuario (sesión, cambio de contraseña, cerrar sesión) */}
+          <div style={{ position: 'absolute', top: 20, right: 24, zIndex: 10 }}>
+            <MenuUsuario />
+          </div>
         </div>
       </div>
 
@@ -122,7 +103,7 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ onGoBackToWelcome }) => {
             </div>
           </button>
 
-          <button 
+          <button
             className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`}
             onClick={() => setActiveTab('analysis')}
           >
@@ -132,7 +113,7 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ onGoBackToWelcome }) => {
             </div>
           </button>
 
-          <button 
+          <button
             className={`tab-button ${activeTab === 'categorias' ? 'active' : ''}`}
             onClick={() => setActiveTab('categorias')}
           >

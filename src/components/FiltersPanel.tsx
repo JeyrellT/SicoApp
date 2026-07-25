@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useDashboardStore, Bookmark } from '../stores/dashboardStore';
-import { useSicop } from '../context/SicopContext';
-import { dataManager } from '../data/DataManager';
+import { useInstituciones, useFiltros } from '../hooks/api';
 
 interface FiltersPanelProps {
   isCollapsed: boolean;
@@ -10,64 +9,39 @@ interface FiltersPanelProps {
 }
 
 const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) => {
-  const { isLoaded } = useSicop();
   const searchInputRef = useRef<HTMLInputElement>(null);
-  
+
   const {
     filters,
     view,
     setInstitucion,
     setAnioDesde,
     setAnioHasta,
-    setProcedimientos,
-    setCategoria,
-    setEstado,
     setSearchInst,
-    setKeyword,
     clearFilters,
     saveBookmark,
     loadBookmark,
     removeBookmark
   } = useDashboardStore();
 
-  const [bookmarkName, setBookmarkName] = useState('');
-  const [showBookmarkInput, setShowBookmarkInput] = useState(false);
-  const [keywordSuggestions, setKeywordSuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [bookmarkName, setBookmarkName] = React.useState('');
+  const [showBookmarkInput, setShowBookmarkInput] = React.useState(false);
   const shouldReduceMotion = useReducedMotion();
 
-  // Get institutions list with better performance
-  const instituciones = useMemo(() => {
-    if (!isLoaded) return [];
-    try {
-      return dataManager.getInstitucionesList();
-    } catch (error) {
-      console.error('❌ Error obteniendo lista de instituciones:', error);
-      return [];
-    }
-  }, [isLoaded]);
+  // Catálogo de instituciones (paginado por el backend, filtrado por búsqueda)
+  const institucionesQuery = useInstituciones({
+    buscar: filters.searchInst || undefined,
+    page: 1,
+    page_size: 50
+  });
+  const instituciones = useMemo(() => institucionesQuery.data?.items || [], [institucionesQuery.data]);
+  const resultsCount = institucionesQuery.data?.total ?? instituciones.length;
 
-  const filteredInstituciones = useMemo(() => {
-    if (!filters.searchInst) return instituciones;
-    const searchLower = filters.searchInst.toLowerCase();
-    return instituciones.filter((i: any) => 
-      (i.nombre || '').toLowerCase().includes(searchLower) ||
-      (i.siglas || '').toLowerCase().includes(searchLower) ||
-      String(i.codigoInstitucion || '').includes(filters.searchInst)
-    );
-  }, [instituciones, filters.searchInst]);
+  // Años disponibles según el backend (para el rango de periodo)
+  const filtrosQuery = useFiltros();
+  const aniosDisponibles = filtrosQuery.data?.anios || [];
 
-  const filtrosDisponibles = useMemo(() => {
-    if (!isLoaded) return { anios: [], procedimientos: [], categorias: [], estados: [] };
-    try {
-      return dataManager.getInstitucionFilters() || { anios: [], procedimientos: [], categorias: [], estados: [] };
-    } catch (error) {
-      console.error('❌ Error obteniendo filtros disponibles:', error);
-      return { anios: [], procedimientos: [], categorias: [], estados: [] };
-    }
-  }, [isLoaded]);
-
-  type FilterKey = 'institucion' | 'anioDesde' | 'anioHasta' | 'procedimientos' | 'categoria' | 'estado' | 'keyword';
+  type FilterKey = 'institucion' | 'anioDesde' | 'anioHasta';
 
   interface ActiveFilterChip {
     keys: FilterKey[];
@@ -77,19 +51,14 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
   }
 
   const institutionsByCode = useMemo(() => {
-    const map = new Map<string, { codigoInstitucion: string; nombre: string; siglas?: string }>();
-    instituciones.forEach((inst: any) => {
-      if (inst?.codigoInstitucion) {
-        map.set(inst.codigoInstitucion, inst);
-      }
+    const map = new Map<string, { cedula: string; nombre: string }>();
+    instituciones.forEach((inst) => {
+      map.set(inst.cedula, { cedula: inst.cedula, nombre: inst.nombre });
     });
     return map;
   }, [instituciones]);
 
-  const featuredInstituciones = useMemo(() => {
-    const source = filters.searchInst ? filteredInstituciones : instituciones;
-    return source.slice(0, 6);
-  }, [filters.searchInst, filteredInstituciones, instituciones]);
+  const featuredInstituciones = useMemo(() => instituciones.slice(0, 6), [instituciones]);
 
   const selectedInstitution = filters.institucion
     ? institutionsByCode.get(filters.institucion)
@@ -102,9 +71,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
       const info = institutionsByCode.get(filters.institucion);
       chips.push({
         keys: ['institucion'],
-        label: info
-          ? `${info.siglas ? `${info.siglas} · ` : ''}${info.nombre}`
-          : filters.institucion,
+        label: info ? info.nombre : filters.institucion,
         icon: '🏛️',
         tone: 'primary'
       });
@@ -123,46 +90,8 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
       });
     }
 
-    if (filters.procedimientos) {
-      chips.push({
-        keys: ['procedimientos'],
-        label: filters.procedimientos,
-        icon: '📄',
-        tone: 'neutral'
-      });
-    }
-
-    if (filters.categoria) {
-      chips.push({
-        keys: ['categoria'],
-        label: filters.categoria,
-        icon: '🧩',
-        tone: 'neutral'
-      });
-    }
-
-    if (filters.estado) {
-      chips.push({
-        keys: ['estado'],
-        label: filters.estado,
-        icon: '⚡',
-        tone: 'warning'
-      });
-    }
-
-    if (filters.keyword) {
-      chips.push({
-        keys: ['keyword'],
-        label: `“${filters.keyword}”`,
-        icon: '🔎',
-        tone: 'success'
-      });
-    }
-
     return chips;
   }, [filters, institutionsByCode]);
-
-  const resultsCount = filteredInstituciones.length;
 
   const filterSectionVariants = {
     hidden: { opacity: 0, y: 12 },
@@ -188,46 +117,17 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
         case 'anioHasta':
           setAnioHasta('');
           break;
-        case 'procedimientos':
-          setProcedimientos('');
-          break;
-        case 'categoria':
-          setCategoria('');
-          break;
-        case 'estado':
-          setEstado('');
-          break;
-        case 'keyword':
-          setKeyword('');
-          break;
         default:
           break;
       }
     });
   };
 
-  const handleQuickInstitutionSelect = (inst: { codigoInstitucion: string; nombre: string; siglas?: string }) => {
-    if (!inst?.codigoInstitucion) return;
-    setInstitucion(inst.codigoInstitucion);
-    setSearchInst(inst.siglas || inst.nombre || '');
+  const handleQuickInstitutionSelect = (inst: { cedula: string; nombre: string }) => {
+    if (!inst?.cedula) return;
+    setInstitucion(inst.cedula);
+    setSearchInst(inst.nombre || '');
   };
-
-  // Semantic search for keywords
-  useEffect(() => {
-    if (filters.keyword && filters.keyword.length >= 2) {
-      // Simulated keyword suggestions - in real app, this would come from API
-      const mockSuggestions = [
-        'medicamentos', 'equipos médicos', 'servicios profesionales',
-        'mantenimiento', 'combustible', 'papelería', 'servicios de limpieza',
-        'alimentos', 'transporte', 'seguridad', 'tecnología', 'construcción'
-      ].filter(s => s.toLowerCase().includes(filters.keyword.toLowerCase()));
-      
-      setKeywordSuggestions(mockSuggestions);
-      setShowSuggestions(true);
-    } else {
-      setShowSuggestions(false);
-    }
-  }, [filters.keyword]);
 
   const handleSaveBookmark = () => {
     if (bookmarkName.trim()) {
@@ -237,31 +137,21 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
     }
   };
 
-  const handleKeywordSelect = (keyword: string) => {
-    setKeyword(keyword);
-    setShowSuggestions(false);
-  };
-
   const handleClearFilters = () => {
     clearFilters();
     setInstitucion('');
     setSearchInst('');
-    setKeyword('');
   };
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (filters.anioDesde) count++;
     if (filters.anioHasta) count++;
-    if (filters.procedimientos) count++;
-    if (filters.categoria) count++;
-    if (filters.estado) count++;
-    if (filters.keyword) count++;
     return count;
   }, [filters]);
 
   return (
-    <aside 
+    <aside
       className={`filters-panel ${isCollapsed ? 'collapsed' : 'expanded'}`}
       aria-label="Panel de filtros"
     >
@@ -279,7 +169,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
             <span className="filters-panel__toggle-text">Filtros</span>
           )}
         </button>
-        
+
         {!isCollapsed && activeFiltersCount > 0 && (
           <div className="filters-panel__badge">
             {activeFiltersCount}
@@ -299,7 +189,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
               <span className="filters-panel__summary-eyebrow">Panel institucional</span>
               <h2 className="filters-panel__summary-title">Explora instituciones</h2>
               <p className="filters-panel__summary-subtitle">
-                Combina búsquedas semánticas con filtros precisos para descubrir oportunidades.
+                Busca una institución y ajusta el rango de años para analizar su perfil.
               </p>
             </div>
             <div className="filters-panel__summary-metric" aria-live="polite">
@@ -345,10 +235,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
                 <div className="selection-card__icon" aria-hidden>🏛️</div>
                 <div className="selection-card__details">
                   <span className="selection-card__label">Institución seleccionada</span>
-                  <strong className="selection-card__name">
-                    {selectedInstitution.siglas ? `${selectedInstitution.siglas} · ` : ''}
-                    {selectedInstitution.nombre}
-                  </strong>
+                  <strong className="selection-card__name">{selectedInstitution.nombre}</strong>
                   <span className="selection-card__code">Código {filters.institucion}</span>
                 </div>
                 <button
@@ -378,16 +265,14 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
                 </p>
               </div>
               <div className="filters-panel__chips">
-                {featuredInstituciones.map((inst: any) => (
+                {featuredInstituciones.map((inst) => (
                   <button
-                    key={inst.codigoInstitucion}
+                    key={inst.cedula}
                     type="button"
-                    className={`filter-chip filter-chip--ghost ${filters.institucion === inst.codigoInstitucion ? 'filter-chip--active' : ''}`}
+                    className={`filter-chip filter-chip--ghost ${filters.institucion === inst.cedula ? 'filter-chip--active' : ''}`}
                     onClick={() => handleQuickInstitutionSelect(inst)}
                   >
-                    <span className="filter-chip__label">
-                      {inst.siglas ? `${inst.siglas}` : inst.nombre}
-                    </span>
+                    <span className="filter-chip__label">{inst.nombre}</span>
                   </button>
                 ))}
               </div>
@@ -416,8 +301,9 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
                 <span className="filter-input__icon" aria-hidden>🔍</span>
                 <input
                   id="search-inst"
+                  ref={searchInputRef}
                   type="text"
-                  placeholder="Nombre, siglas o código..."
+                  placeholder="Nombre o cédula jurídica..."
                   value={filters.searchInst}
                   onChange={e => setSearchInst(e.target.value)}
                   className="filter-input"
@@ -425,24 +311,22 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
                 />
               </div>
               <small id="search-inst-help" className="filter-help">
-                Busque por nombre, siglas o código de institución
+                Busque por nombre o cédula de institución
               </small>
 
               <label className="filter-label filter-label--select" htmlFor="institucion-select">
                 Resultados ({resultsCount})
               </label>
-              <select 
+              <select
                 id="institucion-select"
-                value={filters.institucion} 
-                onChange={e => setInstitucion(e.target.value)} 
+                value={filters.institucion}
+                onChange={e => setInstitucion(e.target.value)}
                 className="filter-select"
                 aria-label="Seleccionar institución"
               >
                 <option value="">Seleccione institución…</option>
-                {filteredInstituciones.map((i: any) => (
-                  <option key={i.codigoInstitucion} value={i.codigoInstitucion}>
-                    {i.siglas ? `${i.siglas} - ${i.nombre}` : i.nombre}
-                  </option>
+                {instituciones.map((i) => (
+                  <option key={i.cedula} value={i.cedula}>{i.nombre}</option>
                 ))}
               </select>
             </div>
@@ -459,190 +343,39 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
               <span className="filter-card__eyebrow">Periodo</span>
               <h3 className="filter-card__title">Rango de años</h3>
               <p className="filter-card__description">
-                Limita los resultados al rango temporal relevante.
+                Limita el perfil de la institución al rango de años relevante.
               </p>
             </div>
             <div className="filter-card__body">
               <div className="filter-row">
                 <div className="filter-col">
                   <label htmlFor="anio-desde" className="filter-sublabel">Desde</label>
-                  <select 
+                  <select
                     id="anio-desde"
-                    value={filters.anioDesde} 
-                    onChange={e => setAnioDesde(e.target.value)} 
+                    value={filters.anioDesde}
+                    onChange={e => setAnioDesde(e.target.value)}
                     className="filter-select"
                   >
                     <option value="">Todos</option>
-                    {filtrosDisponibles.anios.map((a: number) => (
+                    {aniosDisponibles.map((a) => (
                       <option key={a} value={String(a)}>{a}</option>
                     ))}
                   </select>
                 </div>
                 <div className="filter-col">
                   <label htmlFor="anio-hasta" className="filter-sublabel">Hasta</label>
-                  <select 
+                  <select
                     id="anio-hasta"
-                    value={filters.anioHasta} 
-                    onChange={e => setAnioHasta(e.target.value)} 
+                    value={filters.anioHasta}
+                    onChange={e => setAnioHasta(e.target.value)}
                     className="filter-select"
                   >
                     <option value="">Todos</option>
-                    {filtrosDisponibles.anios.map((a: number) => (
+                    {aniosDisponibles.map((a) => (
                       <option key={a} value={String(a)}>{a}</option>
                     ))}
                   </select>
                 </div>
-              </div>
-            </div>
-          </motion.section>
-
-          <motion.section
-            className="filter-group filter-card"
-            variants={filterSectionVariants}
-            initial="hidden"
-            animate="visible"
-            transition={filterSectionTransition}
-          >
-            <div className="filter-card__header">
-              <span className="filter-card__eyebrow">Modalidad</span>
-              <h3 className="filter-card__title">Tipo de procedimiento</h3>
-              <p className="filter-card__description">
-                Identifica el tipo de proceso de compra que deseas analizar.
-              </p>
-            </div>
-            <div className="filter-card__body">
-              <select 
-                id="procedimientos"
-                value={filters.procedimientos} 
-                onChange={e => setProcedimientos(e.target.value)} 
-                className="filter-select"
-                aria-label="Tipo de procedimiento"
-              >
-                <option value="">Todos</option>
-                {filtrosDisponibles.procedimientos.map((p: string) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            </div>
-          </motion.section>
-
-          <motion.section
-            className="filter-group filter-card"
-            variants={filterSectionVariants}
-            initial="hidden"
-            animate="visible"
-            transition={filterSectionTransition}
-          >
-            <div className="filter-card__header">
-              <span className="filter-card__eyebrow">Clasificación</span>
-              <h3 className="filter-card__title">Categoría</h3>
-              <p className="filter-card__description">
-                Centra el análisis en categorías estratégicas.
-              </p>
-            </div>
-            <div className="filter-card__body">
-              <select 
-                id="categoria"
-                value={filters.categoria} 
-                onChange={e => setCategoria(e.target.value)} 
-                className="filter-select"
-                aria-label="Categoría"
-              >
-                <option value="">Todas</option>
-                {filtrosDisponibles.categorias.map((c: string) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          </motion.section>
-
-          <motion.section
-            className="filter-group filter-card"
-            variants={filterSectionVariants}
-            initial="hidden"
-            animate="visible"
-            transition={filterSectionTransition}
-          >
-            <div className="filter-card__header">
-              <span className="filter-card__eyebrow">Seguimiento</span>
-              <h3 className="filter-card__title">Estado</h3>
-              <p className="filter-card__description">
-                Filtra por el estado actual del procedimiento o contrato.
-              </p>
-            </div>
-            <div className="filter-card__body">
-              <select 
-                id="estado"
-                value={filters.estado} 
-                onChange={e => setEstado(e.target.value)} 
-                className="filter-select"
-                aria-label="Estado"
-              >
-                <option value="">Todos</option>
-                {filtrosDisponibles.estados.map((s: string) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-          </motion.section>
-
-          <motion.section
-            className="filter-group filter-card"
-            variants={filterSectionVariants}
-            initial="hidden"
-            animate="visible"
-            transition={filterSectionTransition}
-          >
-            <div className="filter-card__header">
-              <span className="filter-card__eyebrow">Descubrimiento semántico</span>
-              <h3 className="filter-card__title">Búsqueda inteligente</h3>
-              <p className="filter-card__description">
-                Encuentra coincidencias por palabras clave dentro de las descripciones.
-              </p>
-            </div>
-            <div className="filter-card__body">
-              <div className="filter-search-container">
-                <div className="filter-input-wrapper">
-                  <span className="filter-input__icon" aria-hidden>✨</span>
-                  <input
-                    id="keyword-search"
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Ej: medicamentos, servicios profesionales..."
-                    value={filters.keyword}
-                    onChange={e => setKeyword(e.target.value)}
-                    className="filter-input"
-                    aria-describedby="keyword-help"
-                    onFocus={() => filters.keyword.length >= 2 && setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  />
-                </div>
-                <small id="keyword-help" className="filter-help">
-                  Busque por palabras clave en las descripciones
-                </small>
-
-                <MotionAnimatePresence>
-                  {showSuggestions && keywordSuggestions.length > 0 && (
-                    <motion.div
-                      className="filter-suggestions"
-                      initial={{ opacity: 0, y: -6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={buildTransition(0.2)}
-                    >
-                      {keywordSuggestions.map((suggestion, idx) => (
-                        <button
-                          key={idx}
-                          className="filter-suggestion"
-                          onClick={() => handleKeywordSelect(suggestion)}
-                          type="button"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </MotionAnimatePresence>
               </div>
             </div>
           </motion.section>
@@ -658,12 +391,12 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ isCollapsed, onToggle }) =>
               <button
                 className="filter-btn filter-btn--clear"
                 onClick={handleClearFilters}
-                disabled={activeFiltersCount === 0}
+                disabled={activeFiltersCount === 0 && !filters.institucion}
                 aria-label="Limpiar todos los filtros"
               >
                 🗑️ Limpiar filtros
               </button>
-              
+
               <button
                 className="filter-btn filter-btn--bookmark"
                 onClick={() => setShowBookmarkInput(!showBookmarkInput)}

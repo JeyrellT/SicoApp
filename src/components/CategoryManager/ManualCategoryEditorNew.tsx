@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ManualCategoryRule, CategoryGroup, SubcategoryRule } from '../../types/categories';
-import { CategoryService } from '../../services/CategoryService';
+import { useProcedimientos } from '../../hooks/api';
+import { normalizarTexto } from './categoryGrouping';
 import { SubcategoryEditor } from './SubcategoryEditor';
 
 const modernCard: React.CSSProperties = {
@@ -66,8 +67,6 @@ export default function ManualCategoryEditorNew({
   const [search, setSearch] = useState('');
   const [editingRule, setEditingRule] = useState<ManualCategoryRule | null>(null);
   const [newGroupName, setNewGroupName] = useState('');
-  const [previewSuggestions, setPreviewSuggestions] = useState<any[]>([]);
-  const [showPreview, setShowPreview] = useState(false);
   const [editingSubcategories, setEditingSubcategories] = useState<{
     categoryId: string;
     categoryName: string;
@@ -90,19 +89,15 @@ export default function ManualCategoryEditorNew({
     } else {
       setEditingRule(onStartNew());
     }
-    setShowPreview(false);
-    setPreviewSuggestions([]);
   };
 
   const cancelEdit = () => {
     setEditingRule(null);
-    setShowPreview(false);
-    setPreviewSuggestions([]);
   };
 
   const saveEdit = () => {
     if (!editingRule) return;
-    
+
     if (!editingRule.nombre.trim()) {
       alert('El nombre de la categoría es obligatorio');
       return;
@@ -115,24 +110,6 @@ export default function ManualCategoryEditorNew({
 
     onSaveRule(editingRule);
     setEditingRule(null);
-    setShowPreview(false);
-    setPreviewSuggestions([]);
-  };
-
-  const runPreview = () => {
-    if (!editingRule || editingRule.palabrasClave.length === 0) {
-      alert('Agrega palabras clave para previsualizar');
-      return;
-    }
-
-    const suggestions = CategoryService.sugerirDesdeKeywords({
-      palabras: editingRule.palabrasClave,
-      instituciones: editingRule.instituciones,
-      limit: 30
-    });
-
-    setPreviewSuggestions(suggestions);
-    setShowPreview(true);
   };
 
   return (
@@ -181,9 +158,6 @@ export default function ManualCategoryEditorNew({
           onChange={setEditingRule}
           onSave={saveEdit}
           onCancel={cancelEdit}
-          onPreview={runPreview}
-          showPreview={showPreview}
-          previewSuggestions={previewSuggestions}
           institucionesOptions={institucionesOptions}
         />
       )}
@@ -454,18 +428,16 @@ function CategoryCard({ rule, onEdit, onDelete, onEditSubcategories }: {
 // ========================================
 // Editor de categoría (Continuará...)
 // ========================================
-function CategoryEditor({ rule, onChange, onSave, onCancel, onPreview, showPreview, previewSuggestions, institucionesOptions }: {
+function CategoryEditor({ rule, onChange, onSave, onCancel, institucionesOptions }: {
   rule: ManualCategoryRule;
   onChange: (rule: ManualCategoryRule) => void;
   onSave: () => void;
   onCancel: () => void;
-  onPreview: () => void;
-  showPreview: boolean;
-  previewSuggestions: any[];
   institucionesOptions: Array<{ value: string; label: string }>;
 }) {
   const [keywordInput, setKeywordInput] = useState('');
   const [instInput, setInstInput] = useState('');
+  const [previewActivo, setPreviewActivo] = useState(false);
 
   const addKeyword = () => {
     const kw = keywordInput.trim().toLowerCase();
@@ -486,13 +458,50 @@ function CategoryEditor({ rule, onChange, onSave, onCancel, onPreview, showPrevi
     if (!instInput) return;
     const insts = rule.instituciones || [];
     const hasIt = insts.includes(instInput);
-    
+
     onChange({
       ...rule,
       instituciones: hasIt
         ? insts.filter(i => i !== instInput)
         : [...insts, instInput]
     });
+  };
+
+  // Vista previa: antes escaneaba localmente DetalleCarteles/DetalleLineaCartel
+  // vía CategoryService.sugerirDesdeKeywords (DataManager legado, que ya no se
+  // llena). Ahora trae una muestra paginada real con useProcedimientos({buscar})
+  // usando la primera palabra clave (única búsqueda que soporta el backend) y
+  // filtra localmente el resto sobre esa muestra. El filtro por institución de
+  // la regla no se puede aplicar aquí porque GET /v1/procedimientos no expone
+  // ese cruce por objeto de gasto.
+  const primeraPalabra = rule.palabrasClave[0]?.trim() ?? '';
+  const previewQuery = useProcedimientos({
+    buscar: previewActivo && primeraPalabra ? primeraPalabra : undefined,
+    institucion: previewActivo ? rule.instituciones?.[0] : undefined,
+    page_size: previewActivo && primeraPalabra ? 20 : 1
+  });
+
+  const previewResultados = useMemo(() => {
+    if (!previewActivo || !primeraPalabra) return [];
+    const palabrasNorm = rule.palabrasClave.map(normalizarTexto);
+    const items = previewQuery.data?.items ?? [];
+
+    return items
+      .map((item) => {
+        const descNorm = normalizarTexto(item.descripcion);
+        const coincidencias = rule.palabrasClave.filter((_kw, i) => palabrasNorm[i] && descNorm.includes(palabrasNorm[i]));
+        return { item, coincidencias, score: rule.palabrasClave.length ? coincidencias.length / rule.palabrasClave.length : 0 };
+      })
+      .filter((r) => r.coincidencias.length > 0)
+      .sort((a, b) => b.score - a.score);
+  }, [previewQuery.data, previewActivo, primeraPalabra, rule.palabrasClave]);
+
+  const runPreview = () => {
+    if (rule.palabrasClave.length === 0) {
+      alert('Agrega palabras clave para previsualizar');
+      return;
+    }
+    setPreviewActivo(true);
   };
 
   return (
@@ -512,7 +521,7 @@ function CategoryEditor({ rule, onChange, onSave, onCancel, onPreview, showPrevi
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: showPreview ? '1fr 1fr' : '1fr', gap: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: previewActivo ? '1fr 1fr' : '1fr', gap: 24 }}>
         {/* Formulario */}
         <div>
           {/* Nombre y color */}
@@ -714,20 +723,26 @@ function CategoryEditor({ rule, onChange, onSave, onCancel, onPreview, showPrevi
             <button onClick={onSave} style={{ ...btn('primary'), flex: 1, padding: '14px' }}>
               💾 Guardar Categoría
             </button>
-            <button onClick={onPreview} style={{ ...btn('secondary'), padding: '14px' }}>
+            <button onClick={runPreview} style={{ ...btn('secondary'), padding: '14px' }}>
               👁️ Vista Previa
             </button>
             <button onClick={onCancel} style={{ ...btn('secondary'), padding: '14px' }}>
               ❌ Cancelar
             </button>
           </div>
+          {previewActivo && rule.palabrasClave.length > 1 && (
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 8 }}>
+              La vista previa busca en el servidor solo por "{primeraPalabra}" (primera palabra clave); las demás
+              filtran localmente sobre esa muestra.
+            </div>
+          )}
         </div>
 
         {/* Vista previa */}
-        {showPreview && (
+        {previewActivo && (
           <div>
             <h4 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 700, color: '#374151' }}>
-              📋 Vista Previa ({previewSuggestions.length} resultados)
+              📋 Vista Previa ({previewResultados.length} resultados)
             </h4>
             <div style={{
               maxHeight: 600,
@@ -737,8 +752,19 @@ function CategoryEditor({ rule, onChange, onSave, onCancel, onPreview, showPrevi
               border: '2px solid #e5e7eb',
               padding: 16
             }}>
-              {previewSuggestions.slice(0, 20).map((sugg, i) => (
-                <div key={i} style={{
+              {previewQuery.isError && (
+                <div style={{ textAlign: 'center', padding: 40, color: '#dc2626' }}>
+                  No se pudo consultar el servidor para esta vista previa.
+                </div>
+              )}
+
+              {!previewQuery.isError && previewQuery.isFetching && (
+                <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>Buscando...</div>
+              )}
+
+              {!previewQuery.isError && !previewQuery.isFetching &&
+                previewResultados.slice(0, 20).map(({ item, coincidencias, score }) => (
+                <div key={item.nro_sicop} style={{
                   padding: 12,
                   marginBottom: 12,
                   background: '#f9fafb',
@@ -746,13 +772,13 @@ function CategoryEditor({ rule, onChange, onSave, onCancel, onPreview, showPrevi
                   border: '1px solid #e5e7eb'
                 }}>
                   <div style={{ fontWeight: 600, marginBottom: 6, color: '#3b82f6' }}>
-                    {sugg.numeroCartel}
+                    {item.numero_procedimiento} · {item.institucion}
                   </div>
                   <div style={{ fontSize: 13, color: '#374151', marginBottom: 6 }}>
-                    {sugg.texto.slice(0, 150)}...
+                    {item.descripcion.slice(0, 150)}...
                   </div>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {sugg.coincidencias.map((c: string) => (
+                    {coincidencias.map((c) => (
                       <span key={c} style={{
                         ...badge,
                         background: '#22c55e',
@@ -772,13 +798,13 @@ function CategoryEditor({ rule, onChange, onSave, onCancel, onPreview, showPrevi
                       padding: '2px 8px',
                       margin: 0
                     }}>
-                      {(sugg.score * 100).toFixed(0)}%
+                      {(score * 100).toFixed(0)}%
                     </span>
                   </div>
                 </div>
               ))}
 
-              {previewSuggestions.length === 0 && (
+              {!previewQuery.isError && !previewQuery.isFetching && previewResultados.length === 0 && (
                 <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>
                   <div style={{ fontSize: 36, marginBottom: 12 }}>🔍</div>
                   <div>No se encontraron resultados con estas palabras clave</div>

@@ -30,3 +30,20 @@ cleaned/*.csv
 
 # Cache de gh-pages
 .gh-pages-cache
+
+# backend Python
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.egg-info/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/htmlcov/
+backend/.coverage
+*.py[cod]
+
+# secretos y datos: nunca al repositorio
+.env
+backend/.env
+*.zip
+backend/**/*.csv

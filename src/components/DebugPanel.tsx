@@ -4,12 +4,7 @@ import { dataManager } from '../data/DataManager';
 
 export const DebugPanel: React.FC = () => {
   const showDebug = String(process.env.REACT_APP_SHOW_DEBUG ?? '').toLowerCase() === 'true';
-  const { 
-    instituciones, 
-    keywordsComunes,
-    error,
-    isLoaded
-  } = useSicop();
+  const { error, isLoaded } = useSicop();
 
   const provDebug = useMemo(() => {
     if (!showDebug || !isLoaded) return null as any;
@@ -161,8 +156,6 @@ export const DebugPanel: React.FC = () => {
       <h3>DEBUG PANEL</h3>
       <div><strong>isLoaded:</strong> {isLoaded ? 'YES' : 'NO'}</div>
       <div><strong>error:</strong> {error || 'none'}</div>
-      <div><strong>instituciones:</strong> {instituciones?.length || 0}</div>
-      <div><strong>keywords:</strong> {keywordsComunes?.length || 0}</div>
 
       {isLoaded && provDebug && (
         <div style={{ marginTop: '10px' }}>
@@ -201,22 +194,6 @@ export const DebugPanel: React.FC = () => {
           <pre style={{ fontSize: '10px', background: '#f0f0f0', padding: '4px' }}>
             {JSON.stringify(provDebug.sampleProvs, null, 2)}
           </pre>
-        </div>
-      )}
-      
-      {instituciones && instituciones.length > 0 && (
-        <div style={{ marginTop: '10px' }}>
-          <strong>Primera institución:</strong>
-          <pre style={{ fontSize: '10px', background: '#f0f0f0', padding: '4px' }}>
-            {JSON.stringify(instituciones[0], null, 2)}
-          </pre>
-        </div>
-      )}
-      
-      {keywordsComunes && keywordsComunes.length > 0 && (
-        <div style={{ marginTop: '10px' }}>
-          <strong>Primeras keywords:</strong>
-          <div>{keywordsComunes.slice(0, 5).join(', ')}</div>
         </div>
       )}
     </div>

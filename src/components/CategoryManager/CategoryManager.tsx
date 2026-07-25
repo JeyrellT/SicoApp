@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, Suspense, lazy } from 'react';
 import _ from 'lodash';
-import { useSicop } from '../../context/SicopContext';
+import { useInstituciones } from '../../hooks/api';
 import { CategoryService } from '../../services/CategoryService';
 import { ManualCategoryRule, CategoryGroup } from '../../types/categories';
 import CategoryAnalysisView from './CategoryAnalysisView';
@@ -13,7 +13,7 @@ const CategoryConfigView = lazy(() => import('./CategoryConfigView').then(module
 const randomId = () => Math.random().toString(36).slice(2, 10);
 
 export default function CategoryManager() {
-  const { instituciones } = useSicop();
+  const { data: institucionesData } = useInstituciones({ page_size: 200 });
   const [rules, setRules] = useState<ManualCategoryRule[]>([]);
   const [groups, setGroups] = useState<CategoryGroup[]>([]);
   const [activeTab, setActiveTab] = useState<'analysis' | 'manual' | 'testing' | 'config'>('analysis');
@@ -41,8 +41,8 @@ export default function CategoryManager() {
   }, []);
 
   const institucionesOptions = useMemo(() => {
-    return (instituciones || []).map(i => ({ value: i.codigoInstitucion, label: `${i.codigoInstitucion} - ${i.nombreInstitucion}` }));
-  }, [instituciones]);
+    return (institucionesData?.items || []).map(i => ({ value: i.cedula, label: `${i.cedula} - ${i.nombre}` }));
+  }, [institucionesData]);
 
   const startNew = (): ManualCategoryRule => {
     return { id: randomId(), nombre: '', descripcion: '', palabrasClave: [], instituciones: [], activo: true, color: '#3b82f6' };

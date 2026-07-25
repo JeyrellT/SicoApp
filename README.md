@@ -21,6 +21,39 @@
 
 ---
 
+## Arquitectura (desde julio 2026)
+
+La aplicación **ya no carga archivos CSV en el navegador**. Los datos viven en un
+backend propio que ingiere a diario el ZIP mensual del Observatorio de Compra
+Pública y conserva los **últimos 24 meses**.
+
+```
+Observatorio ──▶ ETL diario ──▶ PostgreSQL ──▶ API FastAPI ──▶ este frontend
+  (ZIP mensual)   (cron 08:00)   (24 meses)     (agregados)     (GitHub Pages)
+```
+
+- El acceso requiere **cuenta de usuario**. Hay tres perfiles: `consulta`,
+  `analista` y `admin`, con distintos permisos, límites de página y meses de
+  historia visibles.
+- El navegador ya no recibe filas crudas: pide agregados ya calculados. Una vista
+  de dashboard pesa menos de 1 KB, contra los 37 MB del ZIP que antes descargaba
+  cada usuario.
+
+El backend vive en [`backend/`](backend/README.md). Para desplegarlo, ver
+[`backend/docs/DESPLIEGUE_RAILWAY.md`](backend/docs/DESPLIEGUE_RAILWAY.md).
+
+### Variable obligatoria para compilar el frontend
+
+```bash
+REACT_APP_API_URL=https://<dominio-de-la-api> npm run build
+```
+
+Sin ella el cliente apunta a `http://localhost:8000` y la aplicación publicada no
+podrá autenticarse. El dominio del frontend debe además estar en `CORS_ORIGINS`
+del servicio `api`.
+
+---
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

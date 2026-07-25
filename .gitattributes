@@ -1,0 +1,7 @@
+# Los scripts de shell y el Dockerfile se ejecutan en Linux dentro del contenedor:
+# un CRLF introducido por Windows haría fallar el arranque con "no such file or
+# directory" al interpretar el shebang.
+*.sh text eol=lf
+Dockerfile text eol=lf
+entrypoint.sh text eol=lf
+*.py text eol=lf

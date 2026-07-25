@@ -4,7 +4,6 @@
 // Sistema completo de reportes ejecutivos y análisis
 
 import React, { useState, useMemo } from 'react';
-import { useSicop } from '../context/SicopContext';
 import { reportService } from '../services/ReportService';
 import { dataManager } from '../data/DataManager';
 import './ReportsPanel.css';
@@ -26,9 +25,6 @@ interface ReportFilter {
 }
 
 export const ReportsPanel: React.FC = () => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { estadisticasGenerales } = useSicop();
-  
   const [activeReport, setActiveReport] = useState<ReportType>('executive');
   const [filters, setFilters] = useState<ReportFilter>({
     periodo: {

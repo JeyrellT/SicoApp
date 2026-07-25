@@ -1,23 +1,29 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
+import { QueryProvider } from './api/QueryProvider';
+import { AuthProvider } from './auth/AuthContext';
 
-jest.mock('./services/DataLoaderService', () => ({
-  dataLoaderService: {
-    hasDataInCache: jest.fn().mockResolvedValue(false),
-    getCacheStats: jest.fn().mockResolvedValue({
-      totalFiles: 0,
-      totalRecords: 0,
-      years: [],
-      types: []
-    }),
-    loadDataFromCache: jest.fn().mockResolvedValue(undefined)
-  }
-}));
+beforeEach(() => {
+  // Sin backend disponible en el entorno de pruebas: se evita que las
+  // queries (GET /salud/datos, GET /v1/auth/yo) intenten red real.
+  global.fetch = jest.fn(() => Promise.reject(new Error('red deshabilitada en pruebas')));
+  window.localStorage.clear();
+});
 
-test('renders welcome screen with primary actions', async () => {
-  render(<App />);
+function renderApp() {
+  return render(
+    <QueryProvider>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </QueryProvider>
+  );
+}
 
-  expect(await screen.findByText(/Sistema de Análisis SICOP/i)).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: /¿Qué deseas hacer\?/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /Ir a Gestión de Datos/i })).toBeInTheDocument();
+test('sin sesión activa, muestra la pantalla de ingreso', async () => {
+  renderApp();
+
+  expect(await screen.findByRole('heading', { name: /SICOP Analytics/i })).toBeInTheDocument();
+  expect(screen.getByLabelText(/correo electrónico/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /ingresar/i })).toBeInTheDocument();
 });

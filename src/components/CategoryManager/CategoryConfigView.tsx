@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFiltros } from '../../hooks/api';
 import { CategoryService } from '../../services/CategoryService';
 import { CategoryConfigEntry, SubcategoryRule } from '../../types/categories';
 import { 
@@ -30,22 +31,31 @@ export const CategoryConfigView: React.FC = () => {
     subcategories: SubcategoryRule[];
   } | null>(null);
 
+  // Catálogo completo de objetos de gasto: reemplaza a las categorías
+  // "sistema" de sectores fijos que antes venían de un DataManager en
+  // memoria que ya no se llena.
+  const filtrosQuery = useFiltros();
+  const objetosGasto = filtrosQuery.data?.objetos_gasto ?? [];
+
   // Cargar categorías
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     setLoading(true);
     try {
-      const cats = await CategoryService.getAllCategoriesWithConfig();
+      const cats = await CategoryService.getAllCategoriesWithConfig(objetosGasto);
       setCategories(cats);
     } catch (error) {
       console.error('Error cargando categorías:', error);
     } finally {
       setLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtrosQuery.data]);
 
   useEffect(() => {
-    loadCategories();
-  }, []);
+    if (filtrosQuery.data) {
+      loadCategories();
+    }
+  }, [filtrosQuery.data, loadCategories]);
 
   // Toggle categoría individual
   const handleToggleCategory = async (categoryId: string, currentState: boolean) => {
@@ -71,7 +81,7 @@ export const CategoryConfigView: React.FC = () => {
   // Desactivar todas
   const handleDeactivateAll = async () => {
     try {
-      await CategoryService.deactivateAllCategories();
+      await CategoryService.deactivateAllCategories(objetosGasto);
       await loadCategories();
     } catch (error) {
       console.error('Error al desactivar todas:', error);
@@ -138,7 +148,17 @@ export const CategoryConfigView: React.FC = () => {
     inactivas: categories.filter(c => !c.activa).length
   };
 
-  if (loading) {
+  if (filtrosQuery.isError) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <div style={{ fontSize: '18px', color: '#dc2626' }}>
+          No se pudo cargar el catálogo de objetos de gasto desde el servidor.
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || filtrosQuery.isLoading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
         <div style={{ fontSize: '18px', color: '#666' }}>Cargando configuración...</div>

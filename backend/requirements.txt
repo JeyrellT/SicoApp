@@ -1,0 +1,18 @@
+# SICOP backend — dependencias de runtime.
+# Regla de entrega: TODO pinneado con "==". pip-audit debe salir en 0 antes de desplegar.
+fastapi==0.140.0
+uvicorn[standard]==0.51.0
+sqlalchemy==2.0.51
+alembic==1.18.5
+psycopg[binary]==3.3.4
+pydantic==2.13.4
+pydantic-settings==2.14.2
+email-validator==2.3.0
+pyjwt==2.13.0
+argon2-cffi==25.1.0
+httpx==0.28.1
+orjson==3.11.9
+slowapi==0.1.10
+tenacity==9.1.4
+python-json-logger==4.1.0
+tzdata==2026.3

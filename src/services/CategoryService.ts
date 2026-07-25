@@ -2,113 +2,41 @@
 // SERVICIO PARA CATEGORÍAS MANUALES Y SUGERENCIAS POR KEYWORDS
 // ================================
 
-import _ from 'lodash';
-import { dataManager } from '../data/DataManager';
-import { cacheService } from './CacheService';
-import { ManualCategoryRule, CategoryGroup, CategorySuggestion, CategoryConfiguration, CategoryConfigEntry, SubcategoryConfiguration } from '../types/categories';
+import { ManualCategoryRule, CategoryGroup, CategoryConfiguration, CategoryConfigEntry, SubcategoryConfiguration } from '../types/categories';
 
 const LS_RULES_KEY = 'sicop.manualCategories.v1';
 const LS_GROUPS_KEY = 'sicop.categoryGroups.v1';
 const LS_CONFIG_KEY = 'sicop.categoryConfiguration.v1';
 const LS_SUBCAT_CONFIG_KEY = 'sicop.subcategoryConfiguration.v1';
-const CACHE_RULES_KEY = 'manual_categories';
-const CACHE_GROUPS_KEY = 'category_groups';
-const CACHE_CONFIG_KEY = 'category_configuration';
-const CACHE_SUBCAT_CONFIG_KEY = 'subcategory_configuration';
 
 class CategoryServiceImpl {
-  
+
   // ================================
-  // MÉTODOS DE PERSISTENCIA EN CACHE
+  // MÉTODOS DE PERSISTENCIA (localStorage)
   // ================================
-  
-  /**
-   * Guarda las categorías manuales tanto en localStorage como en cache
-   */
-  private async persistRulesToCache(rules: ManualCategoryRule[]) {
-    try {
-      await cacheService.setCustomData(CACHE_RULES_KEY, rules);
-      console.log('✅ Categorías manuales guardadas en cache');
-    } catch (error) {
-      console.error('❌ Error guardando categorías en cache:', error);
-    }
-  }
+  // Nota: antes existía una copia adicional en IndexedDB (CacheService) para
+  // estos mismos datos. Se retiró junto con el resto del sistema de carga
+  // manual de archivos; localStorage ya era la fuente de verdad síncrona y
+  // cubre por completo esta persistencia.
 
   /**
-   * Guarda los grupos tanto en localStorage como en cache
-   */
-  private async persistGroupsToCache(groups: CategoryGroup[]) {
-    try {
-      await cacheService.setCustomData(CACHE_GROUPS_KEY, groups);
-      console.log('✅ Grupos de categorías guardados en cache');
-    } catch (error) {
-      console.error('❌ Error guardando grupos en cache:', error);
-    }
-  }
-
-  /**
-   * Guarda la configuración de categorías en cache y localStorage
-   */
-  private async persistConfigToCache(config: CategoryConfiguration) {
-    try {
-      await cacheService.setCustomData(CACHE_CONFIG_KEY, config);
-      console.log('✅ Configuración de categorías guardada en cache');
-    } catch (error) {
-      console.error('❌ Error guardando configuración en cache:', error);
-    }
-  }
-
-  /**
-   * Carga las categorías desde cache si existen, sino desde localStorage
+   * Carga las categorías desde localStorage
    */
   private async loadRulesFromCache(): Promise<ManualCategoryRule[]> {
-    try {
-      const cached = await cacheService.getCustomData<ManualCategoryRule[]>(CACHE_RULES_KEY);
-      if (cached && Array.isArray(cached)) {
-        console.log('✅ Categorías cargadas desde cache');
-        return cached;
-      }
-    } catch (error) {
-      console.warn('⚠️ Error cargando desde cache, usando localStorage:', error);
-    }
-    
-    // Fallback a localStorage
     return this.loadRulesFromLocalStorage();
   }
 
   /**
-   * Carga los grupos desde cache si existen, sino desde localStorage
+   * Carga los grupos desde localStorage
    */
   private async loadGroupsFromCache(): Promise<CategoryGroup[]> {
-    try {
-      const cached = await cacheService.getCustomData<CategoryGroup[]>(CACHE_GROUPS_KEY);
-      if (cached && Array.isArray(cached)) {
-        console.log('✅ Grupos cargados desde cache');
-        return cached;
-      }
-    } catch (error) {
-      console.warn('⚠️ Error cargando grupos desde cache, usando localStorage:', error);
-    }
-    
-    // Fallback a localStorage
     return this.loadGroupsFromLocalStorage();
   }
 
   /**
-   * Carga la configuración desde cache si existe, sino desde localStorage
+   * Carga la configuración desde localStorage
    */
   private async loadConfigFromCache(): Promise<CategoryConfiguration | null> {
-    try {
-      const cached = await cacheService.getCustomData<CategoryConfiguration>(CACHE_CONFIG_KEY);
-      if (cached) {
-        console.log('✅ Configuración cargada desde cache');
-        return cached;
-      }
-    } catch (error) {
-      console.warn('⚠️ Error cargando configuración desde cache, usando localStorage:', error);
-    }
-    
-    // Fallback a localStorage
     return this.loadConfigFromLocalStorage();
   }
 
@@ -167,8 +95,6 @@ class CategoryServiceImpl {
     localStorage.setItem(LS_RULES_KEY, JSON.stringify(rules));
     
     // Guardar en cache (asíncrono, no bloqueante)
-    this.persistRulesToCache(rules);
-    
     // Notificar al DataManager que las categorías han cambiado
     // Esto forzará la recarga de sectores en el siguiente render
     this.notifyDataManagerUpdate();
@@ -206,11 +132,7 @@ class CategoryServiceImpl {
   }
 
   saveGroups(groups: CategoryGroup[]) {
-    // Guardar en localStorage (sincrónico)
     localStorage.setItem(LS_GROUPS_KEY, JSON.stringify(groups));
-    
-    // Guardar en cache (asíncrono, no bloqueante)
-    this.persistGroupsToCache(groups);
   }
 
   upsertGroup(group: CategoryGroup) {
@@ -225,55 +147,14 @@ class CategoryServiceImpl {
     this.saveGroups(all);
   }
 
-  // ================================
-  // SUGERENCIAS DESDE KEYWORDS E INSTITUCIONES
-  // ================================
-  sugerirDesdeKeywords(params: {
-    palabras: string[];
-    instituciones?: string[]; // codigos
-    limit?: number;
-  }): CategorySuggestion[] {
-    const palabras = (params.palabras || []).map(p => p.trim().toLowerCase()).filter(Boolean);
-    if (!palabras.length) return [];
-
-    const carteles: any[] = dataManager.obtenerDatos('DetalleCarteles') || [];
-    const lineas: any[] = dataManager.obtenerDatos('DetalleLineaCartel') || [];
-
-    // Filtrar por instituciones si aplica
-    const instSet = params.instituciones && params.instituciones.length ? new Set(params.instituciones) : null;
-
-    // Construir mapa de cartel -> líneas
-    const lineasByCartel = _.groupBy(lineas, 'numeroCartel');
-
-    // Scoring por coincidencias
-    const scoreTexto = (texto: string): { score: number; hits: string[] } => {
-      const t = (texto || '').toLowerCase();
-      const hits = palabras.filter(p => t.includes(p));
-      const score = hits.length / palabras.length; // simple ratio
-      return { score, hits };
-    };
-
-    const sugerencias: CategorySuggestion[] = [];
-
-    for (const c of carteles) {
-      if (instSet && !instSet.has(c.codigoInstitucion)) continue;
-      const baseTexto = `${c.nombreCartel || ''} ${c.descripcionCartel || ''}`;
-      let { score, hits } = scoreTexto(baseTexto);
-
-      // considerar líneas del cartel para mejorar score
-      const ls = lineasByCartel[c.numeroCartel] || [];
-      for (const l of ls) {
-        const r = scoreTexto(l.descripcionLinea || '');
-        if (r.score > score) { score = r.score; hits = r.hits; }
-      }
-
-      if (score > 0) {
-        sugerencias.push({ numeroCartel: c.numeroCartel, texto: baseTexto.trim(), score, coincidencias: hits });
-      }
-    }
-
-    return _.orderBy(sugerencias, 'score', 'desc').slice(0, params.limit || 100);
-  }
+  // NOTA: la vista previa de "qué licitaciones coinciden con estas palabras
+  // clave" (antes `sugerirDesdeKeywords`) escaneaba las tablas en memoria
+  // DetalleCarteles/DetalleLineaCartel del DataManager legado, que ya no se
+  // llenan (la app carga todo desde la API REST y esas tablas se publican
+  // vacías varios meses en el origen). Esa vista previa ahora vive en el
+  // componente `ManualCategoryEditorNew`, que trae una muestra paginada real
+  // vía el hook `useProcedimientos({ buscar })` y filtra localmente sobre esa
+  // muestra en vez de sobre datos fila a fila que la API no expone.
 
   // ================================
   // CONFIGURACIÓN DE CATEGORÍAS (ACTIVAR/DESACTIVAR)
@@ -301,12 +182,8 @@ class CategoryServiceImpl {
     // Actualizar timestamp
     config.lastModified = new Date().toISOString();
     
-    // Guardar en localStorage (sincrónico)
     localStorage.setItem(LS_CONFIG_KEY, JSON.stringify(config));
-    
-    // Guardar en cache (asíncrono)
-    this.persistConfigToCache(config);
-    
+
     // Notificar cambio en configuración
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('categoryConfigurationUpdated'));
@@ -335,25 +212,25 @@ class CategoryServiceImpl {
   }
 
   /**
-   * Obtiene todas las categorías (sistema + manuales) con su estado
+   * Obtiene todas las categorías (automáticas por objeto de gasto + manuales)
+   * con su estado. `objetosGasto` es el catálogo completo de códigos de
+   * objeto de gasto (típicamente `useFiltros().data.objetos_gasto`); ya no
+   * se obtiene de un DataManager en memoria porque ese catálogo ahora vive
+   * en el backend.
    */
-  async getAllCategoriesWithConfig(): Promise<CategoryConfigEntry[]> {
+  async getAllCategoriesWithConfig(objetosGasto: string[] = []): Promise<CategoryConfigEntry[]> {
     const config = await this.getCategoryConfiguration();
     const manualRules = await this.getAllRulesAsync();
-    
-    // Categorías del sistema (obtener desde DataManager)
-    const systemCategories = dataManager.getSystemCategoryNames?.() || [];
-    
+
     const result: CategoryConfigEntry[] = [];
 
-    // Agregar categorías del sistema
-    for (const nombre of systemCategories) {
-      const id = nombre;
+    // Agregar categorías automáticas (un objeto de gasto = una categoría "sistema")
+    for (const objetoGasto of objetosGasto) {
       result.push({
-        id,
-        nombre,
+        id: objetoGasto,
+        nombre: objetoGasto,
         tipo: 'sistema',
-        activa: config.categorias[id] !== false // activa por defecto
+        activa: config.categorias[objetoGasto] !== false // activa por defecto
       });
     }
 
@@ -383,10 +260,11 @@ class CategoryServiceImpl {
   }
 
   /**
-   * Desactiva todas las categorías
+   * Desactiva todas las categorías. Ver `getAllCategoriesWithConfig` sobre
+   * el parámetro `objetosGasto`.
    */
-  async deactivateAllCategories() {
-    const categories = await this.getAllCategoriesWithConfig();
+  async deactivateAllCategories(objetosGasto: string[] = []) {
+    const categories = await this.getAllCategoriesWithConfig(objetosGasto);
     const config = await this.getCategoryConfiguration();
     
     for (const cat of categories) {
@@ -404,14 +282,6 @@ class CategoryServiceImpl {
    * Obtiene la configuración de subcategorías (overrides del sistema)
    */
   async getSubcategoryConfiguration(): Promise<SubcategoryConfiguration> {
-    try {
-      const cached = await cacheService.getCustomData<SubcategoryConfiguration>(CACHE_SUBCAT_CONFIG_KEY);
-      if (cached) return cached;
-    } catch (error) {
-      console.warn('⚠️ Error cargando subcategorías desde cache:', error);
-    }
-
-    // Fallback a localStorage
     try {
       const raw = localStorage.getItem(LS_SUBCAT_CONFIG_KEY);
       if (!raw) {
@@ -437,12 +307,8 @@ class CategoryServiceImpl {
   saveSubcategoryConfiguration(config: SubcategoryConfiguration) {
     config.lastModified = new Date().toISOString();
     
-    // Guardar en localStorage
     localStorage.setItem(LS_SUBCAT_CONFIG_KEY, JSON.stringify(config));
-    
-    // Guardar en cache
-    cacheService.setCustomData(CACHE_SUBCAT_CONFIG_KEY, config);
-    
+
     // Notificar cambio
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('subcategoryConfigurationUpdated'));

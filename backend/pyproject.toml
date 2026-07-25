@@ -1,0 +1,25 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".venv", "migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "RUF"]
+ignore = [
+    # Las marcas de tiempo del origen no traen zona horaria: convertirlas a
+    # "aware" inventaría información que el dato no tiene.
+    "DTZ001", "DTZ007",
+    "B008",    # Depends() en argumentos por defecto es el patrón de FastAPI
+    "RUF012",  # anotaciones ClassVar en modelos declarativos
+    "E501",    # la longitud la controla el formateador
+    "UP046",   # Pydantic v2 requiere Generic[T] explícito en modelos genéricos
+    "RUF005",  # la concatenación de listas se lee mejor que el desempaquetado acá
+    "SIM108",  # el if/else explícito documenta mejor los dos casos de una fila irregular
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "RUF059"]
+"tests/conftest.py" = ["E402"]  # la configuración se fija antes de importar app.*
+
+[tool.ruff.format]
+quote-style = "double"
